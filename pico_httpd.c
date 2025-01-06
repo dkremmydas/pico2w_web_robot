@@ -91,6 +91,7 @@ u16_t ssi_example_ssi_handler(int iIndex, char *pcInsert, int iInsertLen
             break;
         }
         case 4: { // "ledinv"
+            printf("ssi ledinv\n");
             printed = snprintf(pcInsert, iInsertLen, "%s", led_on ? "OFF" : "ON");
             break;
         }
@@ -168,9 +169,11 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p) {
     if (current_connection == connection) {
         char buf[LED_STATE_BUFSIZE];
         char *val = httpd_param_value(p, "led_state=", buf, sizeof(buf));
+        printf("Received POST:%s\n",val);
         if (val) {
             led_on = (strcmp(val, "ON") == 0) ? true : false;
-            cyw43_gpio_set(&cyw43_state, 0, led_on);
+            //cyw43_gpio_set(&cyw43_state, 0, led_on);
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_on);
             ret = ERR_OK;
         }
     }
@@ -188,9 +191,15 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
 #endif
 
 int main() {
-    stdio_init_all();
 
     sleep_ms(5000);
+
+    stdio_init_all();
+
+    //gpio_init(MOTOR_FRONT_RIGHT);
+    //gpio_set_dir(MOTOR_FRONT_RIGHT, GPIO_OUT);    
+
+    
 
     if (cyw43_arch_init()) {
         printf("failed to initialise\n");
@@ -198,6 +207,8 @@ int main() {
     }
     cyw43_arch_enable_sta_mode();
 
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+    
     char hostname[sizeof(CYW43_HOST_NAME) + 4];
     memcpy(&hostname[0], CYW43_HOST_NAME, sizeof(CYW43_HOST_NAME) - 1);
     get_mac_ascii(CYW43_HAL_MAC_WLAN0, 8, 4, &hostname[sizeof(CYW43_HOST_NAME) - 1]);
