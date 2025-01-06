@@ -71,6 +71,7 @@ u16_t ssi_example_ssi_handler(int iIndex, char *pcInsert, int iInsertLen
     , uint16_t current_tag_part, uint16_t *next_tag_part
 #endif
 ) {
+    printf("iIndex:%s pcInsert:%s\n" ,iIndex,pcInsert);
     size_t printed;
     switch (iIndex) {
         case 0: { // "status"

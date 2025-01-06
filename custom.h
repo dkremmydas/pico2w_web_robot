@@ -4,7 +4,7 @@
 #define LWIP_MDNS_RESPONDER 0
 #define LWIP_HTTPD_SSI_MULTIPART 1
 
-//#define LWIP_HTTPD_CUSTOM_FILES 1
+#define LWIP_HTTPD_SSI_INCLUDE_TAG 0
 
 #define HTTPD_FSDATA_FILE "pico_fsdata.inc"
 
