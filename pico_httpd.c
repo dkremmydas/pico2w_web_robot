@@ -12,7 +12,7 @@
 #include "pico/stdlib.h"
 
 #include "lwip/ip4_addr.h"
-#include "lwip/apps/mdns.h"
+//#include "lwip/apps/mdns.h"
 #include "lwip/init.h"
 #include "lwip/apps/httpd.h"
 #include "lwip/apps/fs.h"
@@ -60,8 +60,34 @@ static const char *cgi_handler_test(int iIndex, int iNumParams, char *pcParam[],
     return "/index.shtml";
 }
 
+static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) {
+    static char response[256]; // Buffer for the JSON response
+
+    printf("Control command received. iIndex:%d iNumParams:%d pcParam:%s pcValue:%s",iIndex, iNumParams, pcParam, pcValue );
+
+    // Check if parameters are passed
+    if (iNumParams > 0) {
+        // Check if the first parameter matches "test"
+        if (strcmp(pcParam[0], "test") == 0) {
+            snprintf(response, sizeof(response),
+                     "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: application/json\r\n\r\n"
+                     "{\"status\":\"success\",\"message\":\"Test passed\"}");
+            return response;
+        }
+    }
+
+    // Default response
+    snprintf(response, sizeof(response),
+             "HTTP/1.1 200 OK\r\n"
+             "Content-Type: application/json\r\n\r\n"
+             "{\"status\":\"error\",\"message\":\"Invalid or no parameters provided\"}");
+    return response;
+}
+
 static tCGI cgi_handlers[] = {
     { "/", cgi_handler_test },
+    { "/control.cgi", cgi_control},
     { "/index.shtml", cgi_handler_test },
 };
 

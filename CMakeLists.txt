@@ -72,6 +72,7 @@ pico_add_library(pico_httpd_content NOFLAG)
 
 pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/content/404.html
+        ${CMAKE_CURRENT_LIST_DIR}/content/index.html
         ${CMAKE_CURRENT_LIST_DIR}/content/index.shtml
         ${CMAKE_CURRENT_LIST_DIR}/content/test.shtml
         ${CMAKE_CURRENT_LIST_DIR}/content/ledpass.shtml

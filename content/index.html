@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Control</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .control-table {
+            margin: 20px auto;
+            border-spacing: 10px;
+        }
+
+        .control-table td {
+            text-align: center;
+        }
+
+        .control-button {
+            width: 100px;
+            height: 50px;
+            font-size: 16px;
+        }
+
+        .ip-input {
+            display: block;
+            margin: 20px auto;
+            padding: 10px;
+            font-size: 16px;
+            width: 300px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Robot Control Panel</h1>
+
+    <table class="control-table">
+        <tr>
+            <td><button class="control-button" data-command="FLT">Front Left</button></td>
+            <td><button class="control-button" data-command="FWD">Go Front</button></td>
+            <td><button class="control-button" data-command="FRT">Front Right</button></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td><button class="control-button" data-command="LFT">Left</button></td>
+            <td><button class="control-button" data-command="TRN">Turn 180°</button></td>
+            <td><button class="control-button" data-command="RGT">Right</button></td>
+        </tr>
+        <tr>
+            <td><button class="control-button" data-command="BLT">Back Left</button></td>
+            <td><button class="control-button" data-command="BWD">Go Back</button></td>
+            <td><button class="control-button" data-command="BRT">Back Right</button></td>
+        </tr>
+    </table>
+
+    <script>
+        $(document).ready(function () {
+            $('.control-button').click(function () {
+                const command = $(this).data('command');
+
+                const url = `/control.cgi?command=${command}`;;
+
+                $.get(url, { command: command })
+                    .done(function (response) {
+                        console.log('Command: ', command, ' / Response:', response);
+                    })
+                    .fail(function (error) {
+                        console.error('Failed to send command:', command);
+                        console.error('Error:', error);
+                    });
+            });
+        });
+    </script>
+</body>
+</html>
