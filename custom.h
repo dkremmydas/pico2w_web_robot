@@ -7,3 +7,8 @@
 //#define LWIP_HTTPD_CUSTOM_FILES 1
 
 #define HTTPD_FSDATA_FILE "pico_fsdata.inc"
+
+#define MOTOR_FRONT_RIGHT 25
+#define MOTOR_FRONT_LEFT 25
+#define MOTOR_BACK_RIGHT 25
+#define MOTOR_BACK_LEFT 25
