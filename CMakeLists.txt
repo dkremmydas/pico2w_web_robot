@@ -1,13 +1,3 @@
-# Generated Cmake Pico project file
-
-cmake_minimum_required(VERSION 3.13)
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 # == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
@@ -21,6 +11,17 @@ set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
+# ====================================================================================
+# Generated Cmake Pico project file
+
+cmake_minimum_required(VERSION 3.13)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # ====================================================================================
 
 set(PICO_BOARD pico2_w CACHE STRING "Board type")
@@ -71,6 +72,7 @@ pico_add_library(pico_httpd_content NOFLAG)
 
 pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/content/404.html
+        ${CMAKE_CURRENT_LIST_DIR}/content/index.html
         ${CMAKE_CURRENT_LIST_DIR}/content/index.shtml
         ${CMAKE_CURRENT_LIST_DIR}/content/test.shtml
         ${CMAKE_CURRENT_LIST_DIR}/content/ledpass.shtml

@@ -12,7 +12,7 @@
 #include "pico/stdlib.h"
 
 #include "lwip/ip4_addr.h"
-#include "lwip/apps/mdns.h"
+//#include "lwip/apps/mdns.h"
 #include "lwip/init.h"
 #include "lwip/apps/httpd.h"
 #include "lwip/apps/fs.h"
@@ -60,8 +60,34 @@ static const char *cgi_handler_test(int iIndex, int iNumParams, char *pcParam[],
     return "/index.shtml";
 }
 
+static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) {
+    static char response[256]; // Buffer for the JSON response
+
+    printf("Control command received. iIndex:%d iNumParams:%d pcParam:%s pcValue:%s",iIndex, iNumParams, pcParam, pcValue );
+
+    // Check if parameters are passed
+    if (iNumParams > 0) {
+        // Check if the first parameter matches "test"
+        if (strcmp(pcParam[0], "test") == 0) {
+            snprintf(response, sizeof(response),
+                     "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: application/json\r\n\r\n"
+                     "{\"status\":\"success\",\"message\":\"Test passed\"}");
+            return response;
+        }
+    }
+
+    // Default response
+    snprintf(response, sizeof(response),
+             "HTTP/1.1 200 OK\r\n"
+             "Content-Type: application/json\r\n\r\n"
+             "{\"status\":\"error\",\"message\":\"Invalid or no parameters provided\"}");
+    return response;
+}
+
 static tCGI cgi_handlers[] = {
     { "/", cgi_handler_test },
+    { "/control.cgi", cgi_control},
     { "/index.shtml", cgi_handler_test },
 };
 
@@ -71,6 +97,7 @@ u16_t ssi_example_ssi_handler(int iIndex, char *pcInsert, int iInsertLen
     , uint16_t current_tag_part, uint16_t *next_tag_part
 #endif
 ) {
+    printf("iIndex:%s pcInsert:%s\n" ,iIndex,pcInsert);
     size_t printed;
     switch (iIndex) {
         case 0: { // "status"
@@ -91,6 +118,7 @@ u16_t ssi_example_ssi_handler(int iIndex, char *pcInsert, int iInsertLen
             break;
         }
         case 4: { // "ledinv"
+            printf("ssi ledinv\n");
             printed = snprintf(pcInsert, iInsertLen, "%s", led_on ? "OFF" : "ON");
             break;
         }
@@ -168,9 +196,11 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p) {
     if (current_connection == connection) {
         char buf[LED_STATE_BUFSIZE];
         char *val = httpd_param_value(p, "led_state=", buf, sizeof(buf));
+        printf("Received POST:%s\n",val);
         if (val) {
             led_on = (strcmp(val, "ON") == 0) ? true : false;
-            cyw43_gpio_set(&cyw43_state, 0, led_on);
+            //cyw43_gpio_set(&cyw43_state, 0, led_on);
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_on);
             ret = ERR_OK;
         }
     }
@@ -188,9 +218,15 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
 #endif
 
 int main() {
-    stdio_init_all();
 
     sleep_ms(5000);
+
+    stdio_init_all();
+
+    //gpio_init(MOTOR_FRONT_RIGHT);
+    //gpio_set_dir(MOTOR_FRONT_RIGHT, GPIO_OUT);    
+
+    
 
     if (cyw43_arch_init()) {
         printf("failed to initialise\n");
@@ -198,6 +234,8 @@ int main() {
     }
     cyw43_arch_enable_sta_mode();
 
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+    
     char hostname[sizeof(CYW43_HOST_NAME) + 4];
     memcpy(&hostname[0], CYW43_HOST_NAME, sizeof(CYW43_HOST_NAME) - 1);
     get_mac_ascii(CYW43_HAL_MAC_WLAN0, 8, 4, &hostname[sizeof(CYW43_HOST_NAME) - 1]);
