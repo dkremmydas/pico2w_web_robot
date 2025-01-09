@@ -17,6 +17,9 @@
 #include "lwip/apps/httpd.h"
 #include "lwip/apps/fs.h"
 
+// Create a virtual file to write the json report
+static char json_response[JSON_BUFFER_SIZE + 128]; // Adjust size as needed
+
 void httpd_init(void);
 
 static absolute_time_t wifi_connected_time;
@@ -51,171 +54,98 @@ static size_t get_mac_ascii(int idx, size_t chr_off, size_t chr_len, char *dest_
     return dest - dest_in;
 }
 
-static const char *cgi_handler_test(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) {
-    if (iNumParams > 0) {
-        if (strcmp(pcParam[0], "test") == 0) {
-            return "/test.shtml";
-        }
-    }
-    return "/index.shtml";
-}
+//https://lwip-users.nongnu.narkive.com/fNQ0pUUs/proper-way-to-add-extern-fs-support-to-htttpserver-raw
 
 static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) {
-    static char response[256]; // Buffer for the JSON response
+    
+    static char json_response[JSON_BUFFER_SIZE];
 
-    printf("Control command received. iIndex:%d iNumParams:%d pcParam:%s pcValue:%s",iIndex, iNumParams, pcParam, pcValue );
+    printf("Control command received. iIndex:%d iNumParams:%d pcParam1:%s pcValue1:%s\n",iIndex, iNumParams, pcParam[0], pcValue[0] );
+    
+    const char *command = "none"; // Default command if no parameters are passed
 
-    // Check if parameters are passed
-    if (iNumParams > 0) {
-        // Check if the first parameter matches "test"
-        if (strcmp(pcParam[0], "test") == 0) {
-            snprintf(response, sizeof(response),
-                     "HTTP/1.1 200 OK\r\n"
-                     "Content-Type: application/json\r\n\r\n"
-                     "{\"status\":\"success\",\"message\":\"Test passed\"}");
-            return response;
+    // Parse the received parameters
+    if (iNumParams > 0 && pcParam != NULL && pcValue != NULL) {
+        for (int i = 0; i < iNumParams; i++) {
+            if (strcmp(pcParam[i], "command") == 0) {
+                command = pcValue[i];
+                break;
+            }
         }
     }
 
-    // Default response
-    snprintf(response, sizeof(response),
-             "HTTP/1.1 200 OK\r\n"
-             "Content-Type: application/json\r\n\r\n"
-             "{\"status\":\"error\",\"message\":\"Invalid or no parameters provided\"}");
-    return response;
+    // Dynamically generate the JSON response
+    snprintf(json_response, JSON_BUFFER_SIZE,
+             "{\"status\":\"success\",\"received_command\":\"%s\"}",
+             command);
+    
+    printf("json Response:%s\n",json_response );
+
+    return "/json_response"; // it will be a custom filename
+
 }
+
+int fs_open_custom(struct fs_file *file, const char *name) {
+    if (strcmp(name, "/json_response") == 0) {
+        extern char json_response[]; // Reference the global variable
+        file->data = json_response;  // Set file data to the virtual file string
+        file->len = strlen(json_response); // Set file length
+        file->index = 0;           // Start reading from the beginning
+        return 1; // Success
+    }
+    return 0; // File not found
+}
+
+
+int fs_read_custom(struct fs_file *file, char *buffer, int count) {
+    // Ensure the file is valid and points to the virtual file
+    if (!file || file->data != json_response) {
+        printf("Error: Invalid file or not a virtual file\n");
+        return -1; // Return error
+    }
+
+    // Calculate the remaining bytes to read
+    int available = file->len - file->index;
+    if (available <= 0) {
+        printf("No more data to read.\n");
+        return 0; // No data left to read
+    }
+
+    // Determine how many bytes to read
+    int to_read = (count < available) ? count : available;
+
+    // Copy the data to the provided buffer
+    memcpy(buffer, json_response + file->index, to_read);
+
+    // Update the file's read index
+    file->index += to_read;
+
+    printf("Read %d bytes from virtual file.\n", to_read);
+    return to_read; // Return the number of bytes read
+}
+
+
+
+void fs_close_custom(struct fs_file *file) {
+    if (file && file->data == json_response) {
+        // Clear the contents of the virtual_file
+        memset(json_response, 0, sizeof(json_response));
+        printf("Cleared virtual file contents.\n");
+    }
+
+    // Log closure for debugging
+    printf("Closed virtual file: %p\n", file);
+}
+
+
+
+
 
 static tCGI cgi_handlers[] = {
-    { "/", cgi_handler_test },
-    { "/control.cgi", cgi_control},
-    { "/index.shtml", cgi_handler_test },
+    { "/control.cgi", cgi_control}
 };
 
-// Note that the buffer size is limited by LWIP_HTTPD_MAX_TAG_INSERT_LEN, so use LWIP_HTTPD_SSI_MULTIPART to return larger amounts of data
-u16_t ssi_example_ssi_handler(int iIndex, char *pcInsert, int iInsertLen
-#if LWIP_HTTPD_SSI_MULTIPART
-    , uint16_t current_tag_part, uint16_t *next_tag_part
-#endif
-) {
-    printf("iIndex:%s pcInsert:%s\n" ,iIndex,pcInsert);
-    size_t printed;
-    switch (iIndex) {
-        case 0: { // "status"
-            printed = snprintf(pcInsert, iInsertLen, "Pass");
-            break;
-        }
-        case 1: { // "welcome"
-            printed = snprintf(pcInsert, iInsertLen, "Hello from Pico");
-            break;
-        }
-        case 2: { // "uptime"
-            uint64_t uptime_s = absolute_time_diff_us(wifi_connected_time, get_absolute_time()) / 1e6;
-            printed = snprintf(pcInsert, iInsertLen, "%"PRIu64, uptime_s);
-            break;
-        }
-        case 3: { // "ledstate"
-            printed = snprintf(pcInsert, iInsertLen, "%s", led_on ? "ON" : "OFF");
-            break;
-        }
-        case 4: { // "ledinv"
-            printf("ssi ledinv\n");
-            printed = snprintf(pcInsert, iInsertLen, "%s", led_on ? "OFF" : "ON");
-            break;
-        }
-#if LWIP_HTTPD_SSI_MULTIPART
-        case 5: { /* "table" */
-            printed = snprintf(pcInsert, iInsertLen, "<tr><td>This is table row number %d</td></tr>", current_tag_part + 1);
-            // Leave "next_tag_part" unchanged to indicate that all data has been returned for this tag
-            if (current_tag_part < 9) {
-                *next_tag_part = current_tag_part + 1;
-            }
-            break;
-        }
-#endif
-        default: { // unknown tag
-            printed = 0;
-            break;
-        }
-    }
-  return (u16_t)printed;
-}
 
-// Be aware of LWIP_HTTPD_MAX_TAG_NAME_LEN
-static const char *ssi_tags[] = {
-    "status",
-    "welcome",
-    "uptime",
-    "ledstate",
-    "ledinv",
-    "table",
-};
-
-#if LWIP_HTTPD_SUPPORT_POST
-#define LED_STATE_BUFSIZE 4
-static void *current_connection;
-
-err_t httpd_post_begin(void *connection, const char *uri, const char *http_request,
-        u16_t http_request_len, int content_len, char *response_uri,
-        u16_t response_uri_len, u8_t *post_auto_wnd) {
-    if (memcmp(uri, "/led.cgi", 8) == 0 && current_connection != connection) {
-        current_connection = connection;
-        snprintf(response_uri, response_uri_len, "/ledfail.shtml");
-        *post_auto_wnd = 1;
-        return ERR_OK;
-    }
-    return ERR_VAL;
-}
-
-// Return a value for a parameter
-char *httpd_param_value(struct pbuf *p, const char *param_name, char *value_buf, size_t value_buf_len) {
-    size_t param_len = strlen(param_name);
-    u16_t param_pos = pbuf_memfind(p, param_name, param_len, 0);
-    if (param_pos != 0xFFFF) {
-        u16_t param_value_pos = param_pos + param_len;
-        u16_t param_value_len = 0;
-        u16_t tmp = pbuf_memfind(p, "&", 1, param_value_pos);
-        if (tmp != 0xFFFF) {
-            param_value_len = tmp - param_value_pos;
-        } else {
-            param_value_len = p->tot_len - param_value_pos;
-        }
-        if (param_value_len > 0 && param_value_len < value_buf_len) {
-            char *result = (char *)pbuf_get_contiguous(p, value_buf, value_buf_len, param_value_len, param_value_pos);
-            if (result) {
-                result[param_value_len] = 0;
-                return result;
-            }
-        }
-    }
-    return NULL;
-}
-
-err_t httpd_post_receive_data(void *connection, struct pbuf *p) {
-    err_t ret = ERR_VAL;
-    LWIP_ASSERT("NULL pbuf", p != NULL);
-    if (current_connection == connection) {
-        char buf[LED_STATE_BUFSIZE];
-        char *val = httpd_param_value(p, "led_state=", buf, sizeof(buf));
-        printf("Received POST:%s\n",val);
-        if (val) {
-            led_on = (strcmp(val, "ON") == 0) ? true : false;
-            //cyw43_gpio_set(&cyw43_state, 0, led_on);
-            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_on);
-            ret = ERR_OK;
-        }
-    }
-    pbuf_free(p);
-    return ret;
-}
-
-void httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len) {
-    snprintf(response_uri, response_uri_len, "/ledfail.shtml");
-    if (current_connection == connection) {
-        snprintf(response_uri, response_uri_len, "/ledpass.shtml");
-    }
-    current_connection = NULL;
-}
-#endif
 
 int main() {
 
@@ -271,7 +201,6 @@ int main() {
     // setup http server
     cyw43_arch_lwip_begin();
     http_set_cgi_handlers(cgi_handlers, LWIP_ARRAYSIZE(cgi_handlers));
-    http_set_ssi_handler(ssi_example_ssi_handler, ssi_tags, LWIP_ARRAYSIZE(ssi_tags));
     httpd_init();
     cyw43_arch_lwip_end();
 
