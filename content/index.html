@@ -55,19 +55,33 @@
 
     <script>
         $(document).ready(function () {
-            $('.control-button').click(function () {
-                const command = $(this).data('command');
+            const time_resolution = 300; // Time resolution in milliseconds
+            let intervalId; // Variable to hold the interval ID
 
-                const url = `/control.cgi`;;
-
-                $.get(url, { command: command })
+            function sendCommand(command) {
+                $.get('/control.cgi', { command: command })
                     .done(function (response) {
-                        console.log('Command: ', command, ' / Response:', response);
+                        console.log('Command sent:', command, 'Response:', response);
                     })
                     .fail(function (error) {
                         console.error('Failed to send command:', command);
                         console.error('Error:', error);
                     });
+            }
+
+            $('.control-button').on('mousedown touchstart', function () {
+                const command = $(this).data('command');
+                // Start sending the command every `time_resolution` milliseconds
+                intervalId = setInterval(() => sendCommand(command), time_resolution);
+                // Send the command immediately
+                sendCommand(command);
+            });
+
+            $('.control-button').on('mouseup mouseleave touchend', function () {
+                // Stop sending the command
+                clearInterval(intervalId);
+                // Send the STOP command
+                sendCommand('STOP');
             });
         });
     </script>

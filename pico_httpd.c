@@ -23,7 +23,9 @@ static char json_response[JSON_BUFFER_SIZE + 128]; // Adjust size as needed
 void httpd_init(void);
 
 static absolute_time_t wifi_connected_time;
-static bool led_on = false;
+
+static char last_command[5] = "none"; // Last command
+
 
 #if LWIP_MDNS_RESPONDER
 static void srv_txt(struct mdns_service *service, void *txt_userdata)
@@ -54,7 +56,34 @@ static size_t get_mac_ascii(int idx, size_t chr_off, size_t chr_len, char *dest_
     return dest - dest_in;
 }
 
-//https://lwip-users.nongnu.narkive.com/fNQ0pUUs/proper-way-to-add-extern-fs-support-to-htttpserver-raw
+static int do_command(const char *command)
+{
+    // Handle specific commands
+    if (strcmp(command, "FLT") == 0)
+    {
+        gpio_put(MOTOR_FRONT_LEFT_GPIO, 1); // Set GPIO HIGH
+        snprintf(json_response, JSON_BUFFER_SIZE,"{\"status\":1}");
+    }
+    else if (strcmp(command, "FRT") == 0)
+    {
+        gpio_put(MOTOR_FRONT_RIGHT_GPIO, 1); // Set GPIO HIGH
+        snprintf(json_response, JSON_BUFFER_SIZE,"{\"status\":1}");
+    }
+    else if (strcmp(command, "FWD") == 0)
+    {
+        gpio_set_mask((1 << MOTOR_FRONT_RIGHT_GPIO) | (1 << MOTOR_FRONT_LEFT_GPIO) | (1 << MOTOR_BACK_RIGHT_GPIO) | (1 << MOTOR_BACK_LEFT_GPIO));
+       snprintf(json_response, JSON_BUFFER_SIZE,"{\"status\":1}");
+    }
+    else if (strcmp(command, "STOP") == 0)
+    {
+        gpio_clr_mask((1 << MOTOR_FRONT_RIGHT_GPIO) | (1 << MOTOR_FRONT_LEFT_GPIO) | (1 << MOTOR_BACK_RIGHT_GPIO) | (1 << MOTOR_BACK_LEFT_GPIO));
+        snprintf(json_response, JSON_BUFFER_SIZE,"{\"status\":0}");
+    }
+    else
+    {
+        printf("Unknown command received: %s\n", command);
+    }
+}
 
 static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) {
     
@@ -74,19 +103,28 @@ static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char
         }
     }
 
-    // Dynamically generate the JSON response
-    snprintf(json_response, JSON_BUFFER_SIZE,
-             "{\"status\":\"success\",\"received_command\":\"%s\"}",
-             command);
+    //if the command is the same as the last command do nothing
+    if (strcmp(command, last_command) == 0) {
+        //increase speed
+    } else {
+        
+        do_command(command);
+
+        //store last command
+        strncpy(last_command, command, sizeof(last_command) - 1);
+        last_command[sizeof(last_command) - 1] = '\0'; // Ensure null-termination
+
+    }       
+
     
     printf("json Response:%s\n",json_response );
-
     return "/json_response"; // it will be a custom filename
 
 }
 
 int fs_open_custom(struct fs_file *file, const char *name) {
     if (strcmp(name, "/json_response") == 0) {
+        printf("Read json_response file\n");
         extern char json_response[]; // Reference the global variable
         file->data = json_response;  // Set file data to the virtual file string
         file->len = strlen(json_response); // Set file length
@@ -119,8 +157,8 @@ int fs_read_custom(struct fs_file *file, char *buffer, int count) {
 
     // Update the file's read index
     file->index += to_read;
-
     printf("Read %d bytes from virtual file.\n", to_read);
+
     return to_read; // Return the number of bytes read
 }
 
@@ -153,8 +191,17 @@ int main() {
 
     stdio_init_all();
 
-    //gpio_init(MOTOR_FRONT_RIGHT);
-    //gpio_set_dir(MOTOR_FRONT_RIGHT, GPIO_OUT);    
+    gpio_init(MOTOR_FRONT_RIGHT_GPIO);
+    gpio_set_dir(MOTOR_FRONT_RIGHT_GPIO, GPIO_OUT);
+
+    gpio_init(MOTOR_BACK_RIGHT_GPIO);
+    gpio_set_dir(MOTOR_BACK_RIGHT_GPIO, GPIO_OUT);  
+
+    gpio_init(MOTOR_FRONT_LEFT_GPIO);
+    gpio_set_dir(MOTOR_FRONT_LEFT_GPIO, GPIO_OUT);  
+
+    gpio_init(MOTOR_BACK_LEFT_GPIO);
+    gpio_set_dir(MOTOR_BACK_LEFT_GPIO, GPIO_OUT);      
 
     
 
