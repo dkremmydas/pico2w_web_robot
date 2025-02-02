@@ -19,7 +19,54 @@
 #define LWIP_DBG_MIN_LEVEL LWIP_DBG_LEVEL_SERIOUS
 #define LWIP_DBG_TYPES_ON LWIP_DBG_ON
 
-#define MOTOR_FRONT_RIGHT_GPIO 2
-#define MOTOR_BACK_RIGHT_GPIO 4
-#define MOTOR_FRONT_LEFT_GPIO 1
-#define MOTOR_BACK_LEFT_GPIO 5
+/*
+ * 
+ * 
+ *  Motor controller 1
+ *    - Front Left wheel
+ *      + ENA = GP6 (9)
+ *      + IN1 = GP7 (10)
+ *      + IN2 = GP8 (11)
+ *    
+ *    - Front Right wheel
+ *      + ENB = GP2 (4) 
+ *      + ENA = GP3 (5)
+ *      + ENA = GP4 (6)
+ *
+ * 
+ *  Motor controller 2
+ *    - Back Left wheel
+ *      + ENA = GP13 (17) 
+ *      + IN1 = GP14 (18)
+ *      + IN2 = GP15 (19)
+ * 
+ *    - Back Right wheel
+ *      + ENB = GP10 (14) 
+ *      + IN1 = GP11 (15)
+ *      + IN2 = GP12 (16)
+ * 
+ * 
+ *  Project References
+ *   - Explain how to connect the L298N motrol controller (improved version), https://www.youtube.com/watch?v=dyjo_ggEtVU
+ * 
+ */
+
+#define NUM_OF_WHEELS 4
+
+#define MOTOR_FRONT_RIGHT_ENA 2
+#define MOTOR_FRONT_RIGHT_IN1 3
+#define MOTOR_FRONT_RIGHT_IN2 4
+
+#define MOTOR_FRONT_LEFT_ENA 6
+#define MOTOR_FRONT_LEFT_IN1 7
+#define MOTOR_FRONT_LEFT_IN2 8
+
+#define MOTOR_BACK_RIGHT_ENA 10
+#define MOTOR_BACK_RIGHT_IN1 11
+#define MOTOR_BACK_RIGHT_IN2 12
+
+#define MOTOR_BACK_LEFT_ENA 13
+#define MOTOR_BACK_LEFT_IN1 14
+#define MOTOR_BACK_LEFT_IN2 15
+
+

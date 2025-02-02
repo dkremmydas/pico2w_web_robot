@@ -43,7 +43,7 @@
         </tr>
         <tr>
             <td><button class="control-button" data-command="LFT">Left</button></td>
-            <td><button class="control-button" data-command="TRN">Turn 180°</button></td>
+            <td><button class="control-button" data-command="STP">STOP NOW</button></td>
             <td><button class="control-button" data-command="RGT">Right</button></td>
         </tr>
         <tr>
@@ -56,34 +56,61 @@
     <script>
         $(document).ready(function () {
             const time_resolution = 300; // Time resolution in milliseconds
-            let intervalId; // Variable to hold the interval ID
-
+            let commandInterval = null; // Store the command interval ID
+            let idleInterval = null; // Store the idle interval ID for "NONE"
+            let currentCommand = null; // Track the last active command
+            let isButtonPressed = false; // Track whether a button is currently pressed
+    
             function sendCommand(command) {
+                console.log('Command sent:', command);
+                
                 $.get('/control.cgi', { command: command })
                     .done(function (response) {
-                        console.log('Command sent:', command, 'Response:', response);
+                        console.log( 'Response:', response);
                     })
                     .fail(function (error) {
                         console.error('Failed to send command:', command);
-                        console.error('Error:', error);
                     });
             }
-
-            $('.control-button').on('mousedown touchstart', function () {
+    
+            function startSendingCommand(command) {
+                if (currentCommand !== command) {
+                    clearInterval(commandInterval);
+                    clearInterval(idleInterval); // Stop idle `NONE` sending
+                    sendCommand(command);
+                    commandInterval = setInterval(() => sendCommand(command), time_resolution);
+                    currentCommand = command;
+                    isButtonPressed = true;
+                }
+            }
+    
+            function stopSendingCommand() {
+                if (isButtonPressed) {
+                    clearInterval(commandInterval);
+                    sendCommand('NONE');
+                    currentCommand = null;
+                    isButtonPressed = false;
+    
+                    // Start sending "NONE" if no buttons are pressed for time_resolution
+                    idleInterval = setTimeout(() => {
+                        sendCommand('NONE');
+                        idleInterval = setInterval(() => sendCommand('NONE'), time_resolution);
+                    }, time_resolution);
+                }
+            }
+    
+            $('.control-button').on('mousedown touchstart', function (event) {
+                event.preventDefault(); // Prevent scrolling on touch devices
                 const command = $(this).data('command');
-                // Start sending the command every `time_resolution` milliseconds
-                intervalId = setInterval(() => sendCommand(command), time_resolution);
-                // Send the command immediately
-                sendCommand(command);
+                startSendingCommand(command);
             });
-
-            $('.control-button').on('mouseup mouseleave touchend', function () {
-                // Stop sending the command
-                clearInterval(intervalId);
-                // Send the STOP command
-                sendCommand('STOP');
+    
+            $(document).on('mouseup mouseleave touchend touchcancel', function () {
+                stopSendingCommand();
             });
         });
     </script>
+    
+    
 </body>
 </html>

@@ -59,6 +59,7 @@ target_link_libraries(picow_httpd_background PRIVATE
         pico_lwip_mdns
         pico_httpd_content
         pico_stdlib
+        hardware_pwm
         )
 
 # Modify the below lines to enable/disable output over UART/USB
