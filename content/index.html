@@ -56,58 +56,125 @@
     <script>
         $(document).ready(function () {
             const time_resolution = 300; // Time resolution in milliseconds
-            let commandInterval = null; // Store the command interval ID
-            let idleInterval = null; // Store the idle interval ID for "NONE"
-            let currentCommand = null; // Track the last active command
-            let isButtonPressed = false; // Track whether a button is currently pressed
-    
+
+            // Active send state
+            const active = {
+                intervalId: null,
+                command: null,
+                pointerId: null,
+                keyboard: false
+            };
+            let idleInterval = null; // interval id for sending 'NON' when idle
+
             function sendCommand(command) {
+                // Keep a console log for debugging
                 console.log('Command sent:', command);
-                
+
+                // Use the existing CGI endpoint used by the project
                 $.get('/control.cgi', { command: command })
                     .done(function (response) {
-                        console.log( 'Response:', response);
+                        console.log('Response:', response);
                     })
-                    .fail(function (error) {
+                    .fail(function () {
                         console.error('Failed to send command:', command);
                     });
             }
-    
-            function startSendingCommand(command) {
-                if (currentCommand !== command) {
-                    clearInterval(commandInterval);
-                    clearInterval(idleInterval); // Stop idle `NONE` sending
-                    sendCommand(command);
-                    commandInterval = setInterval(() => sendCommand(command), time_resolution);
-                    currentCommand = command;
-                    isButtonPressed = true;
+
+            function startSendingCommand(command, opts = {}) {
+                // If already sending same command from same source, do nothing
+                if (active.command === command && active.intervalId !== null) return;
+
+                // Clear any previous interval
+                if (active.intervalId !== null) {
+                    clearInterval(active.intervalId);
+                    active.intervalId = null;
                 }
-            }
-    
-            function stopSendingCommand() {
-                if (isButtonPressed) {
-                    clearInterval(commandInterval);
-                    sendCommand('NONE');
-                    currentCommand = null;
-                    isButtonPressed = false;
-    
-                    // Start sending "NONE" if no buttons are pressed for time_resolution
-                    idleInterval = setTimeout(() => {
-                        sendCommand('NONE');
-                        idleInterval = setInterval(() => sendCommand('NONE'), time_resolution);
-                    }, time_resolution);
+
+                // Stop idle 'NON' sending while actively sending a command
+                if (idleInterval !== null) {
+                    clearInterval(idleInterval);
+                    idleInterval = null;
                 }
+
+                // Set active state
+                active.command = command;
+                active.pointerId = opts.pointerId !== undefined ? opts.pointerId : null;
+                active.keyboard = !!opts.keyboard;
+
+                // Send immediately, then at interval
+                sendCommand(command);
+                active.intervalId = setInterval(() => sendCommand(command), time_resolution);
             }
-    
-            $('.control-button').on('mousedown touchstart', function (event) {
-                event.preventDefault(); // Prevent scrolling on touch devices
-                const command = $(this).data('command');
-                startSendingCommand(command);
+
+            function stopSendingCommand(opts = {}) {
+                // If pointerId is provided, only stop if it matches the active one
+                if (opts.pointerId !== undefined) {
+                    if (active.pointerId === null || active.pointerId !== opts.pointerId) return;
+                }
+
+                // If keyboard stop requested but active wasn't keyboard-sourced, ignore
+                if (opts.keyboard && !active.keyboard) return;
+
+
+                if (active.intervalId !== null) {
+                    clearInterval(active.intervalId);
+                    active.intervalId = null;
+                }
+
+                // Send a single NON to tell the robot we're idle
+                sendCommand('NON');
+
+                // Restart idle repeating send if not already running
+                if (idleInterval === null) {
+                    idleInterval = setInterval(() => sendCommand('NON'), time_resolution);
+                }
+
+                // Reset active state
+                active.command = null;
+                active.pointerId = null;
+                active.keyboard = false;
+            }
+
+            // Attach pointer and keyboard handlers to each control button
+            document.querySelectorAll('.control-button').forEach(btn => {
+                const command = btn.getAttribute('data-command');
+
+                // Pointer events cover mouse, touch and pen
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    try { btn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                    startSendingCommand(command, { pointerId: e.pointerId, keyboard: false });
+                });
+
+                btn.addEventListener('pointerup', (e) => {
+                    try { btn.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                    stopSendingCommand({ pointerId: e.pointerId });
+                });
+
+                btn.addEventListener('pointercancel', (e) => {
+                    stopSendingCommand({ pointerId: e.pointerId });
+                });
+
+                // Keyboard: start on keydown (Space or Enter), stop on keyup
+                btn.addEventListener('keydown', (e) => {
+                    if (e.repeat) return; // ignore auto-repeat keydown
+                    if (e.code === 'Space' || e.code === 'Enter') {
+                        e.preventDefault();
+                        startSendingCommand(command, { keyboard: true });
+                    }
+                });
+
+                btn.addEventListener('keyup', (e) => {
+                    if (e.code === 'Space' || e.code === 'Enter') {
+                        e.preventDefault();
+                        stopSendingCommand({ keyboard: true });
+                    }
+                });
             });
-    
-            $(document).on('mouseup mouseleave touchend touchcancel', function () {
-                stopSendingCommand();
-            });
+
+            // Start idle sending immediately (send once then repeat)
+            sendCommand('NON');
+            idleInterval = setInterval(() => sendCommand('NON'), time_resolution);
         });
     </script>
     

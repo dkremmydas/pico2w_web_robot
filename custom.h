@@ -53,6 +53,8 @@
 
 #define NUM_OF_WHEELS 4
 
+#define MAX_VEHICLE_SPEED 10  // Maximum speed magnitude
+
 #define MOTOR_FRONT_RIGHT_ENA 2
 #define MOTOR_FRONT_RIGHT_IN1 3
 #define MOTOR_FRONT_RIGHT_IN2 4

@@ -43,8 +43,8 @@ pico_set_program_name(picow_httpd_background "picow_httpd_background")
 pico_set_program_version(picow_httpd_background "0.1")
 
 target_compile_definitions(picow_httpd_background PRIVATE
-        WIFI_SSID=\"na3ou25_1\"
-        WIFI_PASSWORD=\"AXL@dia6632\"
+        WIFI_SSID=\"WindWiFi_90CD30\"
+        WIFI_PASSWORD=\"79926126\"
         )
 target_include_directories(picow_httpd_background PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
