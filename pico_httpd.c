@@ -78,6 +78,11 @@ void httpd_init(void);
 
 static absolute_time_t wifi_connected_time;
 
+// Timestamp of the last received /control.cgi request (including idle "NON"
+// polling); used by main()'s watchdog to force-stop the motors if the client
+// disappears (WiFi drop, closed tab, crash) while still commanding movement.
+static absolute_time_t last_command_time;
+
 // store current and previous commands:
 // last_commands[0] = current, last_commands[1] = previous
 static CommandType last_commands[2] = {CMD_NONE, CMD_NONE};
@@ -309,6 +314,7 @@ void update_vehicle()
 
 static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
 {
+    last_command_time = get_absolute_time();
 
     // Fail-safe parsing: default to CMD_NONE and only set if a valid, non-empty value is found.
     CommandType command = CMD_NONE;
@@ -342,8 +348,15 @@ static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char
              vehicle_speed);
 
     // Log received parameters for debugging
-    printf("Command received. iIndex:%d iNumParams:%d pcParam1:%s pcValue1:%s\n", iIndex,
-           iNumParams, pcParam[0], pcValue[0]);
+    if (iNumParams > 0 && pcParam != NULL && pcValue != NULL)
+    {
+        printf("Command received. iIndex:%d iNumParams:%d pcParam1:%s pcValue1:%s\n", iIndex,
+               iNumParams, pcParam[0], pcValue[0]);
+    }
+    else
+    {
+        printf("Command received. iIndex:%d iNumParams:%d (no params)\n", iIndex, iNumParams);
+    }
     printf("Vehicle new status. Speed: %d, last_command: %d\n", vehicle_speed, last_command);
 
     return "/json_response";
@@ -471,13 +484,25 @@ int main()
     httpd_init();
     cyw43_arch_lwip_end();
 
+    last_command_time = get_absolute_time();
+
     while (true)
     {
+        // Safety watchdog: if we're still commanded to move but haven't heard
+        // from a client in a while (WiFi drop, closed tab, crash), stop.
+        if (vehicle_speed != 0 &&
+            absolute_time_diff_us(last_command_time, get_absolute_time()) > COMMAND_TIMEOUT_MS * 1000)
+        {
+            printf("No command received for %d ms, stopping motors.\n", COMMAND_TIMEOUT_MS);
+            push_command(CMD_STOP);
+            update_vehicle();
+        }
+
 #if PICO_CYW43_ARCH_POLL
         cyw43_arch_poll();
         cyw43_arch_wait_for_work_until(led_time);
 #else
-        sleep_ms(1000);
+        sleep_ms(200);
 #endif
     }
 #if LWIP_MDNS_RESPONDER

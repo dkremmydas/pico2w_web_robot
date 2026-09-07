@@ -55,6 +55,8 @@
 
 #define MAX_VEHICLE_SPEED 10  // Maximum speed magnitude
 
+#define COMMAND_TIMEOUT_MS 1000  // Stop motors if no command received within this long
+
 #define MOTOR_FRONT_RIGHT_ENA 2
 #define MOTOR_FRONT_RIGHT_IN1 3
 #define MOTOR_FRONT_RIGHT_IN2 4

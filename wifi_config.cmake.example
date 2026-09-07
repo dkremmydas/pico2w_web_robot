@@ -1,0 +1,6 @@
+# Copy this file to wifi_config.cmake (which is gitignored) and fill in your
+# real WiFi credentials. wifi_config.cmake is included by CMakeLists.txt if it
+# exists, and is never committed to git.
+
+set(WIFI_SSID "your-wifi-ssid")
+set(WIFI_PASSWORD "your-wifi-password")

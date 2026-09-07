@@ -42,9 +42,17 @@ add_executable(picow_httpd_background
 pico_set_program_name(picow_httpd_background "picow_httpd_background")
 pico_set_program_version(picow_httpd_background "0.1")
 
+set(WIFI_CONFIG_FILE ${CMAKE_CURRENT_LIST_DIR}/wifi_config.cmake)
+if(EXISTS ${WIFI_CONFIG_FILE})
+    include(${WIFI_CONFIG_FILE})
+endif()
+if(NOT DEFINED WIFI_SSID OR NOT DEFINED WIFI_PASSWORD)
+    message(FATAL_ERROR "WIFI_SSID/WIFI_PASSWORD not set - copy wifi_config.cmake.example to wifi_config.cmake and fill in your credentials.")
+endif()
+
 target_compile_definitions(picow_httpd_background PRIVATE
-        WIFI_SSID=\"WindWiFi_90CD30\"
-        WIFI_PASSWORD=\"79926126\"
+        WIFI_SSID=\"${WIFI_SSID}\"
+        WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
         )
 target_include_directories(picow_httpd_background PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
