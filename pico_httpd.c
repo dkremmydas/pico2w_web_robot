@@ -240,40 +240,46 @@ void update_vehicle()
                 wheels[3].coef = -1.0; // back left
                 break;
             case CMD_FLT:
-                wheels[0].coef = 0.5;  // front right
-                wheels[2].coef = 0.5;  // back right
-                wheels[1].coef = 1; // front left
-                wheels[3].coef = 1; // back left
-                break;
-            case CMD_FRT:
+                // Turn front-left: left side slower than right side (pivots toward the left).
                 wheels[0].coef = 1.0;  // front right
                 wheels[2].coef = 1.0;  // back right
                 wheels[1].coef = 0.5; // front left
                 wheels[3].coef = 0.5; // back left
                 break;
-            case CMD_BLT:
-                wheels[0].coef = -0.5;  // front right
-                wheels[2].coef = -0.5;  // back right
-                wheels[1].coef = -1.0; // front left
-                wheels[3].coef = -1.0; // back left
+            case CMD_FRT:
+                // Turn front-right: right side slower than left side (pivots toward the right).
+                wheels[0].coef = 0.5;  // front right
+                wheels[2].coef = 0.5;  // back right
+                wheels[1].coef = 1; // front left
+                wheels[3].coef = 1; // back left
                 break;
-            case CMD_BRT:
+            case CMD_BLT:
+                // Turn back-left (reversing): left side slower than right side.
                 wheels[0].coef = -1.0;  // front right
                 wheels[2].coef = -1.0;  // back right
                 wheels[1].coef = -0.5; // front left
                 wheels[3].coef = -0.5; // back left
                 break;
-            case CMD_LFT:
-                wheels[0].coef = -1.0;  // front right
-                wheels[2].coef = -1.0;  // back right
-                wheels[1].coef = 1.0; // front left
-                wheels[3].coef = 1.0; // back left
+            case CMD_BRT:
+                // Turn back-right (reversing): right side slower than left side.
+                wheels[0].coef = -0.5;  // front right
+                wheels[2].coef = -0.5;  // back right
+                wheels[1].coef = -1.0; // front left
+                wheels[3].coef = -1.0; // back left
                 break;
-            case CMD_RGT:
+            case CMD_LFT:
+                // Pivot left in place: left side backward, right side forward.
                 wheels[0].coef = 1.0;  // front right
                 wheels[2].coef = 1.0;  // back right
                 wheels[1].coef = -1.0; // front left
                 wheels[3].coef = -1.0; // back left
+                break;
+            case CMD_RGT:
+                // Pivot right in place: right side backward, left side forward.
+                wheels[0].coef = -1.0;  // front right
+                wheels[2].coef = -1.0;  // back right
+                wheels[1].coef = 1.0; // front left
+                wheels[3].coef = 1.0; // back left
                 break;
             default:
                 wheels[0].coef = 1.0;  // front right
