@@ -13,12 +13,14 @@
 #include "dhcpserver.h"
 #include "hardware/pwm.h"
 #include "lwip/ip4_addr.h"
+#include "lwip/prot/ip4.h"
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 // #include "lwip/apps/mdns.h"
 #include "lwip/apps/fs.h"
 #include "lwip/apps/httpd.h"
 #include "lwip/init.h"
+#include "wifi_ap_filter.h"
 
 typedef enum
 {
@@ -86,6 +88,10 @@ static absolute_time_t last_command_time;
 
 // Hands out DHCP leases to clients when running as our own access point.
 static dhcp_server_t dhcp_server;
+
+// Set once at boot; read by wifi_ap_ip4_input_filter() to only filter
+// traffic while actually running as our own access point.
+static bool ap_mode_active = false;
 
 // store current and previous commands:
 // last_commands[0] = current, last_commands[1] = previous
@@ -443,6 +449,56 @@ static bool select_ap_mode(void)
     return gpio_get(WIFI_MODE_SWITCH_PIN);
 }
 
+// The client currently holding the access-point "control lock" (see
+// wifi_ap_ip4_input_filter below). ip4_addr_isany_val(active_client_ip)
+// means no one currently holds it.
+static ip4_addr_t active_client_ip;
+static absolute_time_t active_client_last_seen;
+
+// Wired in via LWIP_HOOK_IP4_INPUT (see wifi_ap_filter.h). In access-point
+// mode, enforces a "first client wins" lock: whichever client's traffic we
+// see first is remembered as active_client_ip, and any *different* source
+// IP is dropped before it reaches DHCP/TCP/UDP processing - e.g. a second
+// device that joined and set itself a static IP. The lock is released after
+// WIFI_AP_CLIENT_LOCK_TIMEOUT_MS of silence from the active client, letting
+// a different one take over (phone locked, tab closed, etc). A no-op in
+// station mode, and DHCP's own initial (0.0.0.0-sourced) broadcasts are
+// always let through so a client can actually get a lease.
+int wifi_ap_ip4_input_filter(struct pbuf *p, struct netif *inp)
+{
+    (void)inp;
+    if (!ap_mode_active || p->len < sizeof(struct ip_hdr))
+    {
+        return 0;
+    }
+
+    const struct ip_hdr *iphdr = (const struct ip_hdr *)p->payload;
+    ip4_addr_t src;
+    ip4_addr_copy(src, iphdr->src);
+
+    if (ip4_addr_isany_val(src))
+    {
+        return 0; // allow an unconfigured client's DHCP broadcast through
+    }
+
+    absolute_time_t now = get_absolute_time();
+    bool lock_held = !ip4_addr_isany_val(active_client_ip);
+    bool lock_expired = lock_held && absolute_time_diff_us(active_client_last_seen, now) >
+                                          WIFI_AP_CLIENT_LOCK_TIMEOUT_MS * 1000;
+
+    if (lock_held && !lock_expired && !ip4_addr_cmp(&src, &active_client_ip))
+    {
+        pbuf_free(p);
+        return 1; // a different client already holds the lock: dropped
+    }
+
+    // No one holds the lock, the previous holder timed out, or this is the
+    // current holder checking back in - (re)claim it for this source IP.
+    ip4_addr_copy(active_client_ip, src);
+    active_client_last_seen = now;
+    return 0;
+}
+
 int main()
 {
     stdio_init_all();
@@ -463,11 +519,13 @@ int main()
 
     if (select_ap_mode())
     {
-        printf("WIFI_MODE_SWITCH_PIN grounded, starting our own access point '%s'\n", WIFI_AP_SSID);
+        ap_mode_active = true;
+        printf("WIFI_MODE_SWITCH_PIN not grounded (default), starting our own access point '%s'\n",
+               WIFI_AP_SSID);
         cyw43_arch_enable_ap_mode(WIFI_AP_SSID, WIFI_AP_PASSWORD, CYW43_AUTH_WPA2_AES_PSK);
 
         ip4_addr_t ap_ip, ap_mask;
-        IP4_ADDR(&ap_ip, 192, 168, 4, 1);
+        IP4_ADDR(&ap_ip, WIFI_AP_IP_A, WIFI_AP_IP_B, WIFI_AP_IP_C, WIFI_AP_IP_D);
         IP4_ADDR(&ap_mask, 255, 255, 255, 0);
         dhcp_server_init(&dhcp_server, &cyw43_state.netif[CYW43_ITF_AP], &ap_ip, &ap_mask);
 
@@ -476,6 +534,7 @@ int main()
     }
     else
     {
+        printf("WIFI_MODE_SWITCH_PIN grounded, joining home WiFi instead\n");
         cyw43_arch_enable_sta_mode();
 
         char hostname[sizeof(CYW43_HOST_NAME) + 4];

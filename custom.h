@@ -80,4 +80,14 @@
 // with no firmware changes.
 #define WIFI_MODE_SWITCH_PIN 20
 
+// Access-point subnet (see main()'s AP branch in pico_httpd.c).
+#define WIFI_AP_IP_A 192
+#define WIFI_AP_IP_B 168
+#define WIFI_AP_IP_C 4
+#define WIFI_AP_IP_D 1
+
+// How long wifi_ap_ip4_input_filter()'s "controlling client" lock persists
+// with no traffic before it's released and a different client may claim it.
+#define WIFI_AP_CLIENT_LOCK_TIMEOUT_MS 1000
+
 

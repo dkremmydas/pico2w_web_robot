@@ -51,6 +51,10 @@
 #define DHCP_DOES_ARP_CHECK         0
 #define LWIP_DHCP_DOES_ACD_CHECK    0
 
+// Filters IPv4 input in access-point mode so only the single DHCP-leased
+// client can talk to us; see wifi_ap_filter.h.
+#define LWIP_HOOK_FILENAME "wifi_ap_filter.h"
+
 
 #ifndef NDEBUG
 #define LWIP_DEBUG                  1

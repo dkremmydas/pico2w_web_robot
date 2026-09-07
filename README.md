@@ -78,12 +78,20 @@ In access-point mode there's no captive-portal/DNS redirect, so browse to
 `192.168.4.1` manually after connecting; some phones may show a harmless "no
 internet" warning since the network has no internet access.
 
-The bundled DHCP server ([dhcpserver/](dhcpserver/)) only ever hands out a
-single lease (`DHCPS_MAX_IP` = 1), so in practice only one device can get a
-usable IP on the robot's network at a time. This isn't a hard radio-level
-limit — a second device could still associate to the WiFi and set a static IP
-by hand — but it prevents the common case of a second phone/laptop silently
-joining and fighting for control.
+Only one device can control the robot at a time. The bundled DHCP server
+([dhcpserver/](dhcpserver/)) only ever hands out a single lease
+(`DHCPS_MAX_IP` = 1), and [wifi_ap_filter.h](wifi_ap_filter.h) — via lwIP's
+`LWIP_HOOK_IP4_INPUT` hook — enforces a "first client wins" lock: whichever
+device's traffic is seen first becomes the sole allowed source IP, so a
+second device (even one that manually sets itself a static IP) is dropped
+before DHCP/TCP/UDP ever see its packets. The lock releases automatically
+after `WIFI_AP_CLIENT_LOCK_TIMEOUT_MS` (1 second, `custom.h`) of silence from
+the active client — e.g. its tab is closed or it locks — letting a different
+device take over. This isn't a hard radio-level limit — a device could still
+associate to the WiFi itself, and one that deliberately spoofs the active
+client's exact IP would cause a conflict rather than being blocked — but it
+stops the realistic case of a second phone/laptop silently joining and
+fighting for control.
 
 ## Build & flash
 
@@ -152,6 +160,9 @@ motors rather than continuing to drive indefinitely.
 - [lwipopts.h](lwipopts.h) — lwIP network stack configuration.
 - [dhcpserver/](dhcpserver/) — vendored DHCP server (MIT-licensed, from
   `pico-examples`) that hands out leases to clients in access-point mode.
+- [wifi_ap_filter.h](wifi_ap_filter.h) — lwIP `LWIP_HOOK_IP4_INPUT` hook
+  (wired in via `lwipopts.h`) restricting access-point traffic to the single
+  DHCP-leased client.
 - [content/](content/) — the static web control panel (`index.html`) served
   by the Pico, baked into the firmware image at build time.
 - [wifi_config.cmake.example](wifi_config.cmake.example) — template for your
