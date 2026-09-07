@@ -1,9 +1,10 @@
 # pico2w_web_robot
 
 Control a 4-wheel robot using an embedded web server running on a Raspberry Pi
-Pico 2 W. The Pico joins your WiFi network, hosts a small control-panel web
-page, and drives two L298N motor controllers (one per side pair of wheels) in
-response to button presses (mouse, touch, or keyboard) from that page.
+Pico 2 W. The Pico either joins your home WiFi network or hosts its own (see
+[WiFi modes](#wifi-modes)), serves a small control-panel web page, and drives
+two L298N motor controllers (one per side pair of wheels) in response to
+button presses (mouse, touch, or keyboard) from that page.
 
 ## Hardware
 
@@ -28,6 +29,10 @@ in [custom.h](custom.h):
 Each ENA/ENB pin is driven with PWM for speed control; IN1/IN2 set direction.
 See [this video](https://www.youtube.com/watch?v=dyjo_ggEtVU) for wiring an L298N.
 
+`GP20` (physical pin 26) is reserved as `WIFI_MODE_SWITCH_PIN` for a future
+physical WiFi-mode toggle switch — see [WiFi modes](#wifi-modes). It's optional
+and unused if left unconnected.
+
 ## Prerequisites
 
 - [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk) and ARM
@@ -44,10 +49,41 @@ See [this video](https://www.youtube.com/watch?v=dyjo_ggEtVU) for wiring an L298
    cp wifi_config.cmake.example wifi_config.cmake
    ```
 
-   Edit `wifi_config.cmake` and set `WIFI_SSID` / `WIFI_PASSWORD`. This file is
-   gitignored — your credentials are never committed.
+   Edit `wifi_config.cmake` and set `WIFI_SSID` / `WIFI_PASSWORD` (your home
+   network) and, optionally, `WIFI_AP_SSID` / `WIFI_AP_PASSWORD` (the robot's
+   own network — see [WiFi modes](#wifi-modes)). This file is gitignored —
+   your credentials are never committed.
 2. Open the project folder in VS Code with the Raspberry Pi Pico extension
    installed (it should auto-detect `CMakeLists.txt` and configure the build).
+
+## WiFi modes
+
+Which network the robot uses is decided at boot by reading
+`WIFI_MODE_SWITCH_PIN` (`GP20`, see [Wiring](#wiring)):
+
+- **Floating, or pulled high** (its default state via an internal pull-up —
+  i.e. nothing wired to it) → **access-point mode**: the robot hosts its own
+  network (`WIFI_AP_SSID` / `WIFI_AP_PASSWORD`, defaulting to `PicoRobot` /
+  `robot1234` if unset) at the fixed address `192.168.4.1`, and hands out DHCP
+  leases to anything that joins it. This is the default today, since no
+  physical switch exists yet.
+- **Pulled to GND** → **station mode**: joins the home network configured as
+  `WIFI_SSID` / `WIFI_PASSWORD`.
+
+This pin is deliberately wired into the firmware now even though no physical
+switch is installed: once one is added (wired to short `GP20` to GND in one
+position), no firmware changes will be needed — flip the switch and reboot.
+
+In access-point mode there's no captive-portal/DNS redirect, so browse to
+`192.168.4.1` manually after connecting; some phones may show a harmless "no
+internet" warning since the network has no internet access.
+
+The bundled DHCP server ([dhcpserver/](dhcpserver/)) only ever hands out a
+single lease (`DHCPS_MAX_IP` = 1), so in practice only one device can get a
+usable IP on the robot's network at a time. This isn't a hard radio-level
+limit — a second device could still associate to the WiFi and set a static IP
+by hand — but it prevents the common case of a second phone/laptop silently
+joining and fighting for control.
 
 ## Build & flash
 
@@ -73,11 +109,13 @@ debugging without a debug probe attached.
 
 ## Usage
 
-1. Power on the robot. It connects to the configured WiFi network and starts
-   an HTTP server on port 80. Watch the USB serial output for the IP address
-   it's assigned (`Ready, running httpd at <ip>`).
-2. Open that IP address in a browser (desktop or mobile) to load the control
-   panel.
+1. Power on the robot. Depending on `WIFI_MODE_SWITCH_PIN` (see
+   [WiFi modes](#wifi-modes)), it either joins your home WiFi network or starts
+   hosting its own, then starts an HTTP server on port 80. Watch the USB
+   serial output for the IP to use — the assigned address in station mode, or
+   `192.168.4.1` in access-point mode.
+2. Open that IP address in a browser (desktop or mobile, connected to the same
+   network) to load the control panel.
 3. Press and hold a direction button (or focus it and hold Space/Enter) to
    drive; release to stop. Holding a button repeats the command roughly every
    300ms, which ramps the vehicle's speed up the longer it's held; releasing
@@ -106,11 +144,14 @@ motors rather than continuing to drive indefinitely.
 
 ## Project structure
 
-- [pico_httpd.c](pico_httpd.c) — WiFi bring-up, PWM/motor control, the
-  `/control.cgi` command handler, and the speed/direction state machine.
-- [custom.h](custom.h) — motor GPIO pin mappings and lwIP httpd feature flags,
-  force-included into every compile unit.
+- [pico_httpd.c](pico_httpd.c) — WiFi bring-up (station or access-point mode),
+  PWM/motor control, the `/control.cgi` command handler, and the
+  speed/direction state machine.
+- [custom.h](custom.h) — motor and WiFi-mode-switch GPIO pin mappings and lwIP
+  httpd feature flags, force-included into every compile unit.
 - [lwipopts.h](lwipopts.h) — lwIP network stack configuration.
+- [dhcpserver/](dhcpserver/) — vendored DHCP server (MIT-licensed, from
+  `pico-examples`) that hands out leases to clients in access-point mode.
 - [content/](content/) — the static web control panel (`index.html`) served
   by the Pico, baked into the firmware image at build time.
 - [wifi_config.cmake.example](wifi_config.cmake.example) — template for your

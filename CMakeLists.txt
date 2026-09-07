@@ -37,6 +37,7 @@ pico_sdk_init()
 
 add_executable(picow_httpd_background
         pico_httpd.c
+        dhcpserver/dhcpserver.c
         )
 
 pico_set_program_name(picow_httpd_background "picow_httpd_background")
@@ -49,13 +50,22 @@ endif()
 if(NOT DEFINED WIFI_SSID OR NOT DEFINED WIFI_PASSWORD)
     message(FATAL_ERROR "WIFI_SSID/WIFI_PASSWORD not set - copy wifi_config.cmake.example to wifi_config.cmake and fill in your credentials.")
 endif()
+if(NOT DEFINED WIFI_AP_SSID)
+    set(WIFI_AP_SSID "PicoRobot")
+endif()
+if(NOT DEFINED WIFI_AP_PASSWORD)
+    set(WIFI_AP_PASSWORD "robot1234")
+endif()
 
 target_compile_definitions(picow_httpd_background PRIVATE
         WIFI_SSID=\"${WIFI_SSID}\"
         WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
+        WIFI_AP_SSID=\"${WIFI_AP_SSID}\"
+        WIFI_AP_PASSWORD=\"${WIFI_AP_PASSWORD}\"
         )
 target_include_directories(picow_httpd_background PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/dhcpserver
         ${PICO_LWIP_CONTRIB_PATH}/apps/httpd
         )
 

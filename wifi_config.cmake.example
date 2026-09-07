@@ -4,3 +4,10 @@
 
 set(WIFI_SSID "your-wifi-ssid")
 set(WIFI_PASSWORD "your-wifi-password")
+
+# Used only when WIFI_MODE_SWITCH_PIN (custom.h) is pulled to GND at boot,
+# which makes the robot host its own network instead of joining the one
+# above. Optional - CMakeLists.txt falls back to "PicoRobot"/"robot1234"
+# if these aren't set.
+set(WIFI_AP_SSID "PicoRobot")
+set(WIFI_AP_PASSWORD "robot1234")

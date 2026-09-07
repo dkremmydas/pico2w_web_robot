@@ -73,4 +73,11 @@
 #define MOTOR_BACK_LEFT_IN1 14
 #define MOTOR_BACK_LEFT_IN2 15
 
+// Selects which WiFi network to start at boot: reads as HIGH (internal
+// pull-up, no switch wired yet) -> host our own access point (WIFI_AP_SSID),
+// the default; pulled to GND -> join the home WiFi (WIFI_SSID) instead.
+// Reserved now so a future physical toggle switch just wires into this pin
+// with no firmware changes.
+#define WIFI_MODE_SWITCH_PIN 20
+
 

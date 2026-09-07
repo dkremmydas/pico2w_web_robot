@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "custom.h"
+#include "dhcpserver.h"
 #include "hardware/pwm.h"
 #include "lwip/ip4_addr.h"
 #include "pico/cyw43_arch.h"
@@ -82,6 +83,9 @@ static absolute_time_t wifi_connected_time;
 // polling); used by main()'s watchdog to force-stop the motors if the client
 // disappears (WiFi drop, closed tab, crash) while still commanding movement.
 static absolute_time_t last_command_time;
+
+// Hands out DHCP leases to clients when running as our own access point.
+static dhcp_server_t dhcp_server;
 
 // store current and previous commands:
 // last_commands[0] = current, last_commands[1] = previous
@@ -427,6 +431,18 @@ void fs_close_custom(struct fs_file *file)
 
 static tCGI cgi_handlers[] = {{"/control.cgi", cgi_control}};
 
+// Reads WIFI_MODE_SWITCH_PIN to decide which network to start at boot.
+// Floating/high (internal pull-up, no switch wired yet) -> access point
+// mode (the default); pulled to GND -> station mode (join the home WiFi).
+static bool select_ap_mode(void)
+{
+    gpio_init(WIFI_MODE_SWITCH_PIN);
+    gpio_set_dir(WIFI_MODE_SWITCH_PIN, GPIO_IN);
+    gpio_pull_up(WIFI_MODE_SWITCH_PIN);
+    sleep_ms(10); // let the pull-up settle before sampling
+    return gpio_get(WIFI_MODE_SWITCH_PIN);
+}
+
 int main()
 {
     stdio_init_all();
@@ -442,48 +458,66 @@ int main()
         printf("failed to initialise\n");
         return 1;
     }
-    cyw43_arch_enable_sta_mode();
 
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
-    char hostname[sizeof(CYW43_HOST_NAME) + 4];
-    memcpy(&hostname[0], CYW43_HOST_NAME, sizeof(CYW43_HOST_NAME) - 1);
-    get_mac_ascii(CYW43_HAL_MAC_WLAN0, 8, 4, &hostname[sizeof(CYW43_HOST_NAME) - 1]);
-    hostname[sizeof(hostname) - 1] = '\0';
-    netif_set_hostname(&cyw43_state.netif[CYW43_ITF_STA], hostname);
-
-    printf("Connecting to WiFi...\n");
-    if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK,
-                                           30000))
+    if (select_ap_mode())
     {
-        printf("failed to connect.\n");
-        exit(1);
+        printf("WIFI_MODE_SWITCH_PIN grounded, starting our own access point '%s'\n", WIFI_AP_SSID);
+        cyw43_arch_enable_ap_mode(WIFI_AP_SSID, WIFI_AP_PASSWORD, CYW43_AUTH_WPA2_AES_PSK);
+
+        ip4_addr_t ap_ip, ap_mask;
+        IP4_ADDR(&ap_ip, 192, 168, 4, 1);
+        IP4_ADDR(&ap_mask, 255, 255, 255, 0);
+        dhcp_server_init(&dhcp_server, &cyw43_state.netif[CYW43_ITF_AP], &ap_ip, &ap_mask);
+
+        printf("\nReady, running httpd. Connect to '%s' and browse to %s\n", WIFI_AP_SSID,
+               ip4addr_ntoa(&ap_ip));
     }
     else
     {
-        printf("Connected.\n");
+        cyw43_arch_enable_sta_mode();
+
+        char hostname[sizeof(CYW43_HOST_NAME) + 4];
+        memcpy(&hostname[0], CYW43_HOST_NAME, sizeof(CYW43_HOST_NAME) - 1);
+        get_mac_ascii(CYW43_HAL_MAC_WLAN0, 8, 4, &hostname[sizeof(CYW43_HOST_NAME) - 1]);
+        hostname[sizeof(hostname) - 1] = '\0';
+        netif_set_hostname(&cyw43_state.netif[CYW43_ITF_STA], hostname);
+
+        printf("Connecting to WiFi...\n");
+        if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK,
+                                               30000))
+        {
+            printf("failed to connect.\n");
+            exit(1);
+        }
+        else
+        {
+            printf("Connected.\n");
+        }
+        printf("\nReady, running httpd at %s\n", ip4addr_ntoa(netif_ip4_addr(netif_list)));
+
+#if LWIP_MDNS_RESPONDER
+        // Setup mdns
+        cyw43_arch_lwip_begin();
+        mdns_resp_init();
+        printf("mdns host name %s.local\n", hostname);
+#if LWIP_VERSION_MAJOR >= 2 && LWIP_VERSION_MINOR >= 2
+        mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], hostname);
+        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "pico_httpd", "_http", DNSSD_PROTO_TCP,
+                              80, srv_txt, NULL);
+#else
+        mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], hostname, 60);
+        mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "pico_httpd", "_http", DNSSD_PROTO_TCP,
+                              80, 60, srv_txt, NULL);
+#endif
+        cyw43_arch_lwip_end();
+#endif
     }
-    printf("\nReady, running httpd at %s\n", ip4addr_ntoa(netif_ip4_addr(netif_list)));
 
     // start http server
     wifi_connected_time = get_absolute_time();
 
-#if LWIP_MDNS_RESPONDER
-    // Setup mdns
-    cyw43_arch_lwip_begin();
-    mdns_resp_init();
-    printf("mdns host name %s.local\n", hostname);
-#if LWIP_VERSION_MAJOR >= 2 && LWIP_VERSION_MINOR >= 2
-    mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], hostname);
-    mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "pico_httpd", "_http", DNSSD_PROTO_TCP,
-                          80, srv_txt, NULL);
-#else
-    mdns_resp_add_netif(&cyw43_state.netif[CYW43_ITF_STA], hostname, 60);
-    mdns_resp_add_service(&cyw43_state.netif[CYW43_ITF_STA], "pico_httpd", "_http", DNSSD_PROTO_TCP,
-                          80, 60, srv_txt, NULL);
-#endif
-    cyw43_arch_lwip_end();
-#endif
     // setup http server
     cyw43_arch_lwip_begin();
     http_set_cgi_handlers(cgi_handlers, LWIP_ARRAYSIZE(cgi_handlers));
