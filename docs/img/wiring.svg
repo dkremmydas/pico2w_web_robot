@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 760" width="1100" height="760" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="1100" height="760" fill="#ffffff"/>
+  <style>
+    .box { fill: #fafafa; stroke: #333; stroke-width: 2; }
+    .l298 { fill: #fdecea; stroke: #b3261e; stroke-width: 2; }
+    .pico { fill: #e8f5e9; stroke: #2e7d32; stroke-width: 2; }
+    .sig { stroke: #1565c0; stroke-width: 2; fill: none; }
+    .gnd { stroke: #111; stroke-width: 2.5; fill: none; }
+    .vm { stroke: #d32f2f; stroke-width: 3; fill: none; }
+    .v5 { stroke: #ef6c00; stroke-width: 2.5; fill: none; }
+    .mot { stroke: #6d4c41; stroke-width: 2; fill: none; }
+    .title { font-size: 20px; font-weight: bold; }
+    .h { font-size: 15px; font-weight: bold; }
+    .small { font-size: 11px; fill: #555; }
+    .dot { fill: #111; }
+  </style>
+
+  <text x="550" y="36" text-anchor="middle" class="title">Pico 2 W + 2× BESTEP L298N wiring</text>
+
+  <!-- ===== Board 1 (front) ===== -->
+  <rect x="140" y="130" width="180" height="340" rx="6" class="l298"/>
+  <text x="230" y="120" text-anchor="middle" class="h">L298N #1 (front)</text>
+  <g text-anchor="end">
+    <text x="312" y="194">ENA</text><text x="312" y="234">IN1</text>
+    <text x="312" y="274">IN2</text><text x="312" y="314">IN3</text>
+    <text x="312" y="354">IN4</text><text x="312" y="394">ENB</text>
+    <text x="312" y="434">GND</text>
+  </g>
+  <text x="150" y="214">MOTORA</text>
+  <text x="150" y="354">MOTORB</text>
+  <text x="165" y="455" text-anchor="middle">VMS</text>
+  <text x="230" y="455" text-anchor="middle">GND</text>
+  <text x="285" y="455" text-anchor="middle">5V</text>
+  <text x="152" y="258" class="small">5V-EN: on</text>
+  <text x="152" y="274" class="small">CSA/CSB: on</text>
+  <text x="152" y="290" class="small">UR1–4: off</text>
+
+  <!-- ===== Board 2 (back) ===== -->
+  <rect x="780" y="130" width="180" height="340" rx="6" class="l298"/>
+  <text x="870" y="120" text-anchor="middle" class="h">L298N #2 (back)</text>
+  <g text-anchor="start">
+    <text x="788" y="194">ENA</text><text x="788" y="234">IN1</text>
+    <text x="788" y="274">IN2</text><text x="788" y="314">IN3</text>
+    <text x="788" y="354">IN4</text><text x="788" y="394">ENB</text>
+    <text x="788" y="434">GND</text>
+  </g>
+  <text x="950" y="214" text-anchor="end">MOTORA</text>
+  <text x="950" y="354" text-anchor="end">MOTORB</text>
+  <text x="815" y="455" text-anchor="middle">5V</text>
+  <text x="870" y="455" text-anchor="middle">GND</text>
+  <text x="935" y="455" text-anchor="middle">VMS</text>
+  <text x="948" y="258" text-anchor="end" class="small">5V-EN: on</text>
+  <text x="948" y="274" text-anchor="end" class="small">CSA/CSB: on</text>
+  <text x="948" y="290" text-anchor="end" class="small">UR1–4: off</text>
+  <text x="815" y="492" text-anchor="middle" class="small">(n/c)</text>
+
+  <!-- ===== Pico ===== -->
+  <rect x="470" y="130" width="160" height="390" rx="8" class="pico"/>
+  <text x="550" y="120" text-anchor="middle" class="h">Pico 2 W</text>
+  <g text-anchor="start">
+    <text x="478" y="194">GP2 (4)</text><text x="478" y="234">GP3 (5)</text>
+    <text x="478" y="274">GP4 (6)</text><text x="478" y="314">GP7 (10)</text>
+    <text x="478" y="354">GP8 (11)</text><text x="478" y="394">GP6 (9)</text>
+    <text x="478" y="434">GND (13)</text>
+  </g>
+  <g text-anchor="end">
+    <text x="622" y="194">GP10 (14)</text><text x="622" y="234">GP11 (15)</text>
+    <text x="622" y="274">GP12 (16)</text><text x="622" y="314">GP14 (19)</text>
+    <text x="622" y="354">GP15 (20)</text><text x="622" y="394">GP13 (17)</text>
+    <text x="622" y="434">GND (18)</text>
+  </g>
+  <text x="510" y="508" text-anchor="middle">VSYS</text>
+  <text x="510" y="494" text-anchor="middle" class="small">(39)</text>
+  <text x="590" y="508" text-anchor="middle">GND</text>
+  <text x="590" y="494" text-anchor="middle" class="small">(38)</text>
+
+  <!-- signal wires board 1 <-> Pico -->
+  <path class="sig" d="M320 190H470 M320 230H470 M320 270H470 M320 310H470 M320 350H470 M320 390H470"/>
+  <path class="gnd" d="M320 430H470"/>
+  <!-- signal wires Pico <-> board 2 -->
+  <path class="sig" d="M630 190H780 M630 230H780 M630 270H780 M630 310H780 M630 350H780 M630 390H780"/>
+  <path class="gnd" d="M630 430H780"/>
+
+  <!-- ===== Motors ===== -->
+  <path class="mot" d="M92 215H140 M92 245H140"/>
+  <circle cx="70" cy="230" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
+  <text x="70" y="235" text-anchor="middle" class="h">M</text>
+  <text x="70" y="275" text-anchor="middle">Front right</text>
+
+  <path class="mot" d="M92 355H140 M92 385H140"/>
+  <circle cx="70" cy="370" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
+  <text x="70" y="375" text-anchor="middle" class="h">M</text>
+  <text x="70" y="415" text-anchor="middle">Front left</text>
+
+  <path class="mot" d="M960 215H1008 M960 245H1008"/>
+  <circle cx="1030" cy="230" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
+  <text x="1030" y="235" text-anchor="middle" class="h">M</text>
+  <text x="1030" y="275" text-anchor="middle">Back right</text>
+
+  <path class="mot" d="M960 355H1008 M960 385H1008"/>
+  <circle cx="1030" cy="370" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
+  <text x="1030" y="375" text-anchor="middle" class="h">M</text>
+  <text x="1030" y="415" text-anchor="middle">Back left</text>
+
+  <!-- ===== Power ===== -->
+  <!-- 5V from board 1 regulator to Pico VSYS -->
+  <path class="v5" d="M285 470V545H510V520"/>
+  <text x="400" y="538" text-anchor="middle" class="small">regulated 5 V → VSYS</text>
+
+  <!-- ground bus -->
+  <path class="gnd" d="M230 470V580H870V470 M590 520V580 M590 580V620"/>
+  <circle cx="590" cy="580" r="4" class="dot"/>
+
+  <!-- motor supply bus -->
+  <path class="vm" d="M165 470V605H935V470 M510 605V620"/>
+  <circle cx="510" cy="605" r="4.5" fill="#d32f2f"/>
+
+  <!-- battery -->
+  <rect x="460" y="620" width="180" height="56" rx="6" class="box"/>
+  <text x="550" y="645" text-anchor="middle" class="h">Battery 7–12 V</text>
+  <text x="550" y="664" text-anchor="middle" class="small">e.g. 2× 18650 or 6× AA</text>
+  <text x="510" y="614" text-anchor="end" font-weight="bold" fill="#d32f2f" dx="-6">+</text>
+  <text x="596" y="614" font-weight="bold">−</text>
+
+  <!-- legend -->
+  <g transform="translate(140,712)">
+    <path class="sig" d="M0 0H30"/><text x="38" y="4">GPIO signal</text>
+    <path class="gnd" d="M140 0H170"/><text x="178" y="4">GND (all shared)</text>
+    <path class="vm" d="M320 0H350"/><text x="358" y="4">Motor supply (VMS)</text>
+    <path class="v5" d="M510 0H540"/><text x="548" y="4">5 V logic</text>
+    <path class="mot" d="M640 0H670"/><text x="678" y="4">Motor leads</text>
+  </g>
+  <text x="550" y="745" text-anchor="middle" class="small">Physical Pico pin numbers in parentheses. Crossing lines without a dot are not connected.</text>
+</svg>

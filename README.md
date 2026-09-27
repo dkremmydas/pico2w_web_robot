@@ -16,6 +16,10 @@ button presses (mouse, touch, or keyboard) from that page.
 
 ### Wiring
 
+![Schematic: Pico 2 W between two BESTEP L298N boards, with the four motors, battery, shared ground and the 5 V feed to VSYS](docs/img/wiring.svg)
+
+The schematic shows the recommended battery setup (see [Power](#power)).
+
 Pin numbers are Pico GPIO numbers (physical pin number in parentheses), defined
 in [custom.h](custom.h):
 
@@ -23,11 +27,100 @@ in [custom.h](custom.h):
 | --- | --- | --- | --- |
 | Front left | GP6 (9) | GP7 (10) | GP8 (11) |
 | Front right | GP2 (4) | GP3 (5) | GP4 (6) |
-| Back left | GP13 (17) | GP14 (18) | GP15 (19) |
+| Back left | GP13 (17) | GP14 (19) | GP15 (20) |
 | Back right | GP10 (14) | GP11 (15) | GP12 (16) |
 
 Each ENA/ENB pin is driven with PWM for speed control; IN1/IN2 set direction.
 See [this video](https://www.youtube.com/watch?v=dyjo_ggEtVU) for wiring an L298N.
+
+#### BESTEP L298N boards
+
+The instructions below are for the red BESTEP L298N board. Other L298N boards
+work the same way, but their labels and jumpers may differ.
+
+![BESTEP L298N top view: logic header on the left, jumpers along the bottom, screw terminals on the right](docs/img/l298n_top.jpg)
+![BESTEP L298N screw terminals labelled MOTORB, 5V, GND, VMS, MOTORA](docs/img/l298n_terminals.jpg)
+
+**Logic header** (`ENA IN1 IN2 IN3 IN4 ENB GND +5V`). Board 1 drives the front
+wheels and board 2 the back wheels:
+
+| L298N pin | Board 1 (front) | Board 2 (back) |
+| --- | --- | --- |
+| ENA | GP2 (4): front-right speed | GP10 (14): back-right speed |
+| IN1 | GP3 (5) | GP11 (15) |
+| IN2 | GP4 (6) | GP12 (16) |
+| IN3 | GP7 (10) | GP14 (19) |
+| IN4 | GP8 (11) | GP15 (20) |
+| ENB | GP6 (9): front-left speed | GP13 (17): back-left speed |
+| GND | Pico GND (e.g. 3, 8, 13) | Pico GND (e.g. 18, 23) |
+
+Leave the header's `+5V` pin unconnected. Never wire it to the Pico's 3V3 pin.
+
+**Screw terminals:**
+
+- `MOTORA`: the right wheel of the pair. `MOTORB`: the left wheel.
+- `VMS`: motor supply +. `GND`: supply − (shared with the Pico GND).
+- `5V`: regulated 5 V **output** when the `5V-EN` jumper is fitted, or a 5 V
+  logic **input** when it is removed (see [Power](#power)).
+
+**Jumpers:**
+
+- `5V-EN` (top left, next to the regulator): enables the onboard 5 V regulator.
+  See [Power](#power) for when to fit it.
+- `CSA` / `CSB`: keep them **fitted**. They connect the current-sense resistors
+  to ground, and the motors won't run without them.
+- `UR1`–`UR4`: **remove** them. They pull IN1–IN4 up to 5 V, which the Pico
+  (3.3 V logic) doesn't need and which can feed 5 V into its GPIOs when the
+  Pico is unpowered.
+
+When testing for the first time, lift the robot so its wheels are off the
+ground. If a wheel spins the wrong way, swap that motor's two wires in its
+`MOTORA`/`MOTORB` terminal.
+
+### Power
+
+**Every ground must be connected together:** the battery or power bank, both
+L298N boards and the Pico.
+
+**Recommended: a battery pack (7–12 V, e.g. 2× 18650 or 6× AA).** The Pico is
+powered from the L298N's regulator:
+
+```text
+Battery +  ── Board 1 VMS ── Board 2 VMS
+Battery −  ── Board 1 GND ── Board 2 GND ── Pico GND (pin 38)
+
+Board 1  5V terminal (output) ── Pico VSYS (pin 39)
+```
+
+- Fit `5V-EN` on **both** boards, so each board powers its own logic.
+- Take 5 V to the Pico from **one** board only, and never connect the two
+  boards' `5V` terminals together.
+- Above 12 V, remove `5V-EN` and supply 5 V to the logic separately.
+
+**Alternative: a USB power bank (5 V).** This works, but the L298N drops about
+2 V, so the motors only get about 3 V and run slowly. Also, 5 V is too low for
+the onboard regulator, so feed 5 V in directly:
+
+```text
+Power bank +5V ──┬── Board 1 VMS + 5V terminal   (5V-EN removed)
+                 ├── Board 2 VMS + 5V terminal   (5V-EN removed)
+                 └── Pico VSYS (pin 39)
+Power bank GND ──┬── Board 1 GND
+                 ├── Board 2 GND
+                 └── Pico GND (pin 38)
+```
+
+- Remove `5V-EN` on both boards, and put a short wire between `VMS` and `5V`
+  on each board.
+- Put a 470–1000 µF (≥10 V) capacitor across +5V/GND near the boards. Without
+  it, the current burst when the motors start can reset the Pico.
+- Use a power bank that can supply 2 A. Some power banks cut out when the load
+  changes suddenly, so if the robot keeps shutting off, suspect the power bank.
+
+Either way, it's safe to plug the Pico into a PC over USB for flashing or
+serial output while it's powered through VSYS, because the Pico has a diode
+between USB power and VSYS. Don't connect anything to the Pico's `3V3` (pin 36)
+or `VBUS` (pin 40) pins.
 
 `GP20` (physical pin 26) is reserved as `WIFI_MODE_SWITCH_PIN` for a future
 physical WiFi-mode toggle switch — see [WiFi modes](#wifi-modes). It's optional
