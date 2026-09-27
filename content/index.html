@@ -4,7 +4,8 @@
     <meta charset="US-ASCII">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot Control</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Served by the Pico itself: in access-point mode the phone has no internet, so a CDN copy would never load. -->
+    <script src="/jquery-3.6.0.min.js"></script>
     <style>
         .control-table {
             margin: 20px auto;
@@ -19,6 +20,14 @@
             width: 100px;
             height: 50px;
             font-size: 16px;
+            /* Buttons are held down, so stop a long press on a phone from
+               selecting the label or opening the callout menu, and stop the
+               browser treating the touch as a scroll/zoom gesture. Any of
+               those makes it cancel the press (pointercancel) mid-drive. */
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none;
         }
 
         .ip-input {
@@ -150,6 +159,9 @@
                     try { btn.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
                     stopSendingCommand({ pointerId: e.pointerId });
                 });
+
+                // Long press would otherwise open the context menu
+                btn.addEventListener('contextmenu', (e) => e.preventDefault());
 
                 btn.addEventListener('pointercancel', (e) => {
                     stopSendingCommand({ pointerId: e.pointerId });

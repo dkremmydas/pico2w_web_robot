@@ -63,7 +63,11 @@
 #define PORT_DHCP_SERVER (67)
 #define PORT_DHCP_CLIENT (68)
 
-#define DEFAULT_LEASE_TIME_S (24 * 60 * 60) // in seconds
+// Locally modified from upstream (24 h): with only one lease (DHCPS_MAX_IP),
+// a short lease frees the slot about a minute after the controlling phone
+// leaves, instead of locking everyone else out for a day. Clients renew at
+// half the lease time, so a connected phone keeps it indefinitely.
+#define DEFAULT_LEASE_TIME_S (60) // in seconds
 
 #define MAC_LEN (6)
 #define MAKE_IP4(a, b, c, d) ((a) << 24 | (b) << 16 | (c) << 8 | (d))
@@ -180,6 +184,10 @@ static void opt_write_u32(uint8_t **opt, uint8_t cmd, uint32_t val) {
     *opt = o;
 }
 
+static bool lease_expired(const dhcp_server_lease_t *lease) {
+    return (int32_t)(lease->expiry - cyw43_hal_ticks_ms()) < 0;
+}
+
 static void dhcp_server_process(void *arg, struct udp_pcb *upcb, struct pbuf *p, const ip_addr_t *src_addr, u16_t src_port) {
     dhcp_server_t *d = arg;
     (void)upcb;
@@ -226,8 +234,7 @@ static void dhcp_server_process(void *arg, struct udp_pcb *upcb, struct pbuf *p,
                         // IP available
                         yi = i;
                     }
-                    uint32_t expiry = d->lease[i].expiry << 16 | 0xffff;
-                    if ((int32_t)(expiry - cyw43_hal_ticks_ms()) < 0) {
+                    if (lease_expired(&d->lease[i])) {
                         // IP expired, reuse it
                         memset(d->lease[i].mac, 0, MAC_LEN);
                         yi = i;
@@ -236,6 +243,8 @@ static void dhcp_server_process(void *arg, struct udp_pcb *upcb, struct pbuf *p,
             }
             if (yi == DHCPS_MAX_IP) {
                 // No more IP addresses left
+                printf("DHCPS: no free lease, held by MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
+                    d->lease[0].mac[0], d->lease[0].mac[1], d->lease[0].mac[2], d->lease[0].mac[3], d->lease[0].mac[4], d->lease[0].mac[5]);
                 goto ignore_request;
             }
             dhcp_msg.yiaddr[3] = DHCPS_BASE_IP + yi;
@@ -244,31 +253,47 @@ static void dhcp_server_process(void *arg, struct udp_pcb *upcb, struct pbuf *p,
         }
 
         case DHCPREQUEST: {
+            // The requested IP comes from option 50 when selecting/rebooting,
+            // but a renewing/rebinding client omits it and puts its current
+            // IP in ciaddr instead (RFC 2131 4.3.2) - locally modified from
+            // upstream, which ignored renewals and relied on the 24 h lease.
+            const uint8_t *req;
             uint8_t *o = opt_find(opt, DHCP_OPT_REQUESTED_IP);
-            if (o == NULL) {
+            if (o != NULL) {
+                req = o + 2;
+            } else if (memcmp(dhcp_msg.ciaddr, "\x00\x00\x00\x00", 4) != 0) {
+                req = dhcp_msg.ciaddr;
+            } else {
                 // Should be NACK
+                printf("DHCPS: REQUEST ignored, no requested IP\n");
                 goto ignore_request;
             }
-            if (memcmp(o + 2, &ip4_addr_get_u32(ip_2_ip4(&d->ip)), 3) != 0) {
+            if (memcmp(req, &ip4_addr_get_u32(ip_2_ip4(&d->ip)), 3) != 0) {
                 // Should be NACK
+                printf("DHCPS: REQUEST ignored, asked for %u.%u.%u.%u (other subnet)\n", req[0], req[1], req[2], req[3]);
                 goto ignore_request;
             }
-            uint8_t yi = o[5] - DHCPS_BASE_IP;
+            uint8_t yi = req[3] - DHCPS_BASE_IP;
             if (yi >= DHCPS_MAX_IP) {
                 // Should be NACK
+                printf("DHCPS: REQUEST ignored, asked for %u.%u.%u.%u (outside pool)\n", req[0], req[1], req[2], req[3]);
                 goto ignore_request;
             }
+            bool renewal = false;
             if (memcmp(d->lease[yi].mac, dhcp_msg.chaddr, MAC_LEN) == 0) {
                 // MAC match, ok to use this IP address
-            } else if (memcmp(d->lease[yi].mac, "\x00\x00\x00\x00\x00\x00", MAC_LEN) == 0) {
-                // IP unused, ok to use this IP address
+                renewal = !lease_expired(&d->lease[yi]);
+            } else if (memcmp(d->lease[yi].mac, "\x00\x00\x00\x00\x00\x00", MAC_LEN) == 0 ||
+                       lease_expired(&d->lease[yi])) {
+                // IP unused or its previous holder's lease ran out, ok to use this IP address
                 memcpy(d->lease[yi].mac, dhcp_msg.chaddr, MAC_LEN);
             } else {
                 // IP already in use
                 // Should be NACK
+                printf("DHCPS: REQUEST ignored, lease held by another MAC\n");
                 goto ignore_request;
             }
-            d->lease[yi].expiry = (cyw43_hal_ticks_ms() + DEFAULT_LEASE_TIME_S * 1000) >> 16;
+            d->lease[yi].expiry = cyw43_hal_ticks_ms() + DEFAULT_LEASE_TIME_S * 1000;
             dhcp_msg.yiaddr[3] = DHCPS_BASE_IP + yi;
 
             // Read the client's host name (option 12, RFC 2132) from the
@@ -287,6 +312,9 @@ static void dhcp_server_process(void *arg, struct udp_pcb *upcb, struct pbuf *p,
             }
 
             opt_write_u8(&opt, DHCP_OPT_MSG_TYPE, DHCPACK);
+            if (renewal) {
+                break; // routine renewal (every ~30 s), don't flood the log
+            }
             printf("DHCPS: client connected: MAC=%02x:%02x:%02x:%02x:%02x:%02x IP=%u.%u.%u.%u host=\"%s\"\n",
                 dhcp_msg.chaddr[0], dhcp_msg.chaddr[1], dhcp_msg.chaddr[2], dhcp_msg.chaddr[3], dhcp_msg.chaddr[4], dhcp_msg.chaddr[5],
                 dhcp_msg.yiaddr[0], dhcp_msg.yiaddr[1], dhcp_msg.yiaddr[2], dhcp_msg.yiaddr[3],

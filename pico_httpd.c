@@ -6,11 +6,13 @@
  *
  */
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "custom.h"
 #include "dhcpserver.h"
+#include "hardware/clocks.h"
 #include "hardware/pwm.h"
 #include "lwip/ip4_addr.h"
 #include "lwip/prot/ip4.h"
@@ -168,7 +170,11 @@ void setup_pwms()
         // Set PWM function for ENA pins (NO NEED for gpio_init or set_dir)
         gpio_set_function(wheels[i].en_pin, GPIO_FUNC_PWM);
         uint slice = pwm_gpio_to_slice_num(wheels[i].en_pin);
-        pwm_set_wrap(slice, 1000);
+        // 1 MHz counter / 1000 steps = 1 kHz PWM. Without a divider the counter
+        // runs at the full system clock (~150 kHz PWM), far faster than the
+        // L298N can switch, so the motors got almost no power.
+        pwm_set_clkdiv(slice, clock_get_hz(clk_sys) / 1000000.0f);
+        pwm_set_wrap(slice, 999);
         pwm_set_enabled(slice, true);
 
         // Initialize IN1 and IN2 pins as OUTPUT (needed for direction control)
@@ -318,7 +324,7 @@ void update_vehicle()
             gpio_put(wheels[i].in2_pin, 1);
         }
 
-        wheels[i].speed = (int)(vehicle_speed * abs(wheels[i].coef));
+        wheels[i].speed = (int)(vehicle_speed * fabsf(wheels[i].coef)); // fabsf: abs() would truncate 0.5 to 0
 
         int duty = (wheels[i].speed * 1000) / 10; // negative values handled by sign of speed
         // pwm_set_gpio_level expects unsigned duty; ensure sign handled by direction pins
@@ -380,6 +386,11 @@ static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char
 
 int fs_open_custom(struct fs_file *file, const char *name)
 {
+    // httpd asks here first for every request, so this logs each file served.
+    if (strcmp(name, "/json_response") != 0)
+    {
+        printf("HTTP request: %s\n", name);
+    }
     if (strcmp(name, "/json_response") == 0)
     {
         printf("Read json_response file\n");

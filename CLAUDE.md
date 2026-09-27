@@ -82,7 +82,7 @@ behavior (connection status, received commands, PWM duty per wheel).
 - **`lwipopts.h`**: standard lwIP configuration for the Pico W background/poll
   examples (buffer sizes, enabled protocols, debug flags). Change with care —
   this affects TCP/DHCP/memory behavior for the whole network stack.
-- **`content/index.html`**: the entire UI (jQuery-based). Pointer events (mouse/
+- **`content/index.html`**: the entire UI (jQuery, served from `content/jquery-3.6.0.min.js` on the Pico itself since the phone has no internet in access-point mode). Pointer events (mouse/
   touch/pen unified) and keyboard (Space/Enter) both start/stop sending the held
   button's command on an interval, and fall back to sending `NON` when idle so
   the firmware's ramp-down logic engages.

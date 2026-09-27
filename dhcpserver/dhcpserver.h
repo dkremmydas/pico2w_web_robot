@@ -36,7 +36,9 @@
 
 typedef struct _dhcp_server_lease_t {
     uint8_t mac[6];
-    uint16_t expiry;
+    // Locally modified from upstream (uint16_t in ~65 s units): absolute
+    // expiry time in ms, precise enough for the short lease used here.
+    uint32_t expiry;
 } dhcp_server_lease_t;
 
 typedef struct _dhcp_server_t {

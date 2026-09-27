@@ -92,4 +92,5 @@ pico_add_library(pico_httpd_content NOFLAG)
 pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/content/404.html
         ${CMAKE_CURRENT_LIST_DIR}/content/index.html
+        ${CMAKE_CURRENT_LIST_DIR}/content/jquery-3.6.0.min.js
         )

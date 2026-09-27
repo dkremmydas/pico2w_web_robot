@@ -19,7 +19,10 @@
 #define MEM_LIBC_MALLOC             0
 #endif
 #define MEM_ALIGNMENT               4
-#define MEM_SIZE                    4000
+// Raised from the pico-examples default (4000) so httpd can stream the 89 KB
+// jquery-3.6.0.min.js alongside the page and the control.cgi polls without
+// running out of heap and stalling the transfer.
+#define MEM_SIZE                    (32 * 1024)
 #define MEMP_NUM_TCP_SEG            32
 #define MEMP_NUM_ARP_QUEUE          10
 #define PBUF_POOL_SIZE              24

@@ -8,7 +8,8 @@
     .gnd { stroke: #111; stroke-width: 2.5; fill: none; }
     .vm { stroke: #d32f2f; stroke-width: 3; fill: none; }
     .v5 { stroke: #ef6c00; stroke-width: 2.5; fill: none; }
-    .mot { stroke: #6d4c41; stroke-width: 2; fill: none; }
+    .mot { stroke: #6d4c41; stroke-width: 2.5; fill: none; }
+    .motd { stroke: #6d4c41; stroke-width: 2.5; fill: none; stroke-dasharray: 4 3; }
     .title { font-size: 20px; font-weight: bold; }
     .h { font-size: 15px; font-weight: bold; }
     .small { font-size: 11px; fill: #555; }
@@ -26,14 +27,16 @@
     <text x="312" y="354">IN4</text><text x="312" y="394">ENB</text>
     <text x="312" y="434">GND</text>
   </g>
-  <text x="150" y="214">MOTORA</text>
-  <text x="150" y="354">MOTORB</text>
+  <text x="150" y="202">MOTORA</text>
+  <text x="150" y="219" class="small">outer</text><text x="150" y="249" class="small">inner</text>
+  <text x="150" y="342">MOTORB</text>
+  <text x="150" y="359" class="small">inner</text><text x="150" y="389" class="small">outer</text>
   <text x="165" y="455" text-anchor="middle">VMS</text>
   <text x="230" y="455" text-anchor="middle">GND</text>
   <text x="285" y="455" text-anchor="middle">5V</text>
-  <text x="152" y="258" class="small">5V-EN: on</text>
-  <text x="152" y="274" class="small">CSA/CSB: on</text>
-  <text x="152" y="290" class="small">UR1–4: off</text>
+  <text x="152" y="272" class="small">5V-EN: on</text>
+  <text x="152" y="288" class="small">CSA/CSB: on</text>
+  <text x="152" y="304" class="small">UR1–4: off</text>
 
   <!-- ===== Board 2 (back) ===== -->
   <rect x="780" y="130" width="180" height="340" rx="6" class="l298"/>
@@ -44,14 +47,16 @@
     <text x="788" y="354">IN4</text><text x="788" y="394">ENB</text>
     <text x="788" y="434">GND</text>
   </g>
-  <text x="950" y="214" text-anchor="end">MOTORA</text>
-  <text x="950" y="354" text-anchor="end">MOTORB</text>
+  <text x="950" y="202" text-anchor="end">MOTORA</text>
+  <g text-anchor="end" class="small"><text x="950" y="219">outer</text><text x="950" y="249">inner</text></g>
+  <text x="950" y="342" text-anchor="end">MOTORB</text>
+  <g text-anchor="end" class="small"><text x="950" y="359">inner</text><text x="950" y="389">outer</text></g>
   <text x="815" y="455" text-anchor="middle">5V</text>
   <text x="870" y="455" text-anchor="middle">GND</text>
   <text x="935" y="455" text-anchor="middle">VMS</text>
-  <text x="948" y="258" text-anchor="end" class="small">5V-EN: on</text>
-  <text x="948" y="274" text-anchor="end" class="small">CSA/CSB: on</text>
-  <text x="948" y="290" text-anchor="end" class="small">UR1–4: off</text>
+  <text x="948" y="272" text-anchor="end" class="small">5V-EN: on</text>
+  <text x="948" y="288" text-anchor="end" class="small">CSA/CSB: on</text>
+  <text x="948" y="304" text-anchor="end" class="small">UR1–4: off</text>
   <text x="815" y="492" text-anchor="middle" class="small">(n/c)</text>
 
   <!-- ===== Pico ===== -->
@@ -82,22 +87,22 @@
   <path class="gnd" d="M630 430H780"/>
 
   <!-- ===== Motors ===== -->
-  <path class="mot" d="M92 215H140 M92 245H140"/>
+  <path class="motd" d="M92 215H140"/><path class="mot" d="M92 245H140"/>
   <circle cx="70" cy="230" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
   <text x="70" y="235" text-anchor="middle" class="h">M</text>
   <text x="70" y="275" text-anchor="middle">Front right</text>
 
-  <path class="mot" d="M92 355H140 M92 385H140"/>
+  <path class="mot" d="M92 355H140"/><path class="motd" d="M92 385H140"/>
   <circle cx="70" cy="370" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
   <text x="70" y="375" text-anchor="middle" class="h">M</text>
   <text x="70" y="415" text-anchor="middle">Front left</text>
 
-  <path class="mot" d="M960 215H1008 M960 245H1008"/>
+  <path class="motd" d="M960 215H1008"/><path class="mot" d="M960 245H1008"/>
   <circle cx="1030" cy="230" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
   <text x="1030" y="235" text-anchor="middle" class="h">M</text>
   <text x="1030" y="275" text-anchor="middle">Back right</text>
 
-  <path class="mot" d="M960 355H1008 M960 385H1008"/>
+  <path class="mot" d="M960 355H1008"/><path class="motd" d="M960 385H1008"/>
   <circle cx="1030" cy="370" r="26" fill="#fff" stroke="#6d4c41" stroke-width="2"/>
   <text x="1030" y="375" text-anchor="middle" class="h">M</text>
   <text x="1030" y="415" text-anchor="middle">Back left</text>
@@ -123,12 +128,13 @@
   <text x="596" y="614" font-weight="bold">−</text>
 
   <!-- legend -->
-  <g transform="translate(140,712)">
+  <g transform="translate(60,712)">
     <path class="sig" d="M0 0H30"/><text x="38" y="4">GPIO signal</text>
     <path class="gnd" d="M140 0H170"/><text x="178" y="4">GND (all shared)</text>
     <path class="vm" d="M320 0H350"/><text x="358" y="4">Motor supply (VMS)</text>
     <path class="v5" d="M510 0H540"/><text x="548" y="4">5 V logic</text>
-    <path class="mot" d="M640 0H670"/><text x="678" y="4">Motor leads</text>
+    <path class="motd" d="M640 0H670"/><text x="678" y="4">Motor dotted lead</text>
+    <path class="mot" d="M820 0H850"/><text x="858" y="4">Motor plain lead</text>
   </g>
-  <text x="550" y="745" text-anchor="middle" class="small">Physical Pico pin numbers in parentheses. Crossing lines without a dot are not connected.</text>
+  <text x="550" y="745" text-anchor="middle" class="small">Physical Pico pin numbers in parentheses. Crossing lines without a dot are not connected. Outer screw = the one at the board corner, away from the power terminals.</text>
 </svg>
