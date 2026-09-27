@@ -312,8 +312,13 @@ void update_vehicle()
     // Apply to hardware: direction pins and PWM
     for (int i = 0; i < NUM_OF_WHEELS; i++)
     {
-        
-        if (wheels[i].coef > 0)
+        if (vehicle_speed == 0)
+        { // Stopped: release both direction pins so the board's L1-L4 LEDs go
+          // dark (the motor coasts either way, since ENA/ENB is at 0 too)
+            gpio_put(wheels[i].in1_pin, 0);
+            gpio_put(wheels[i].in2_pin, 0);
+        }
+        else if (wheels[i].coef > 0)
         { // Forward
             gpio_put(wheels[i].in1_pin, 1);
             gpio_put(wheels[i].in2_pin, 0);
