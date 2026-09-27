@@ -326,10 +326,17 @@ void update_vehicle()
 
         wheels[i].speed = (int)(vehicle_speed * fabsf(wheels[i].coef)); // fabsf: abs() would truncate 0.5 to 0
 
-        int duty = (wheels[i].speed * 1000) / 10; // negative values handled by sign of speed
-        // pwm_set_gpio_level expects unsigned duty; ensure sign handled by direction pins
-        if (duty < 0)
-            duty = -duty;
+        // Fraction of full speed for this wheel (direction is set by IN1/IN2 above).
+        // Computed from the float coef so a 0.5 inner wheel at speed 1 still moves.
+        float level = fabsf(vehicle_speed * wheels[i].coef) / MAX_VEHICLE_SPEED;
+        int duty = 0;
+        if (level > 0.0f)
+        {
+            if (level > 1.0f)
+                level = 1.0f;
+            // Start at MOTOR_MIN_DUTY so the motor turns instead of buzzing
+            duty = MOTOR_MIN_DUTY + (int)((1000 - MOTOR_MIN_DUTY) * level);
+        }
         pwm_set_gpio_level(wheels[i].en_pin, duty);
     }
 }

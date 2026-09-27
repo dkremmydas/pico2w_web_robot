@@ -55,6 +55,13 @@
 
 #define MAX_VEHICLE_SPEED 10  // Maximum speed magnitude
 
+// PWM duty (out of 1000) for the lowest non-zero speed. Below roughly this the
+// motors can't overcome friction and just buzz at the PWM frequency, so speed
+// 1..MAX_VEHICLE_SPEED is mapped onto MOTOR_MIN_DUTY..1000 instead of 0..1000.
+// Raise it if the wheels still hesitate at the start, lower it for gentler
+// starts (a higher-voltage motor supply needs less).
+#define MOTOR_MIN_DUTY 500
+
 #define COMMAND_TIMEOUT_MS 1000  // Stop motors if no command received within this long
 
 #define MOTOR_FRONT_RIGHT_ENA 2
