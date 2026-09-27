@@ -59,6 +59,17 @@ Leave the header's `+5V` pin unconnected. Never wire it to the Pico's 3V3 pin.
 **Screw terminals:**
 
 - `MOTORA`: the right wheel of the pair. `MOTORB`: the left wheel.
+- Motor leads: each motor cable has one **dotted** (marked) wire and one
+  **plain** wire. On every motor terminal, put the dotted wire in the
+  **outer** screw (at the board corner) and the plain wire in the **inner**
+  screw (next to the power terminals).
+
+  Why the same rule works on both sides: in "forward", the firmware drives
+  every motor with the same polarity (IN1 high/IN2 low, IN3 high/IN4 low). The
+  outputs are laid out `OUT1 OUT2 | power | OUT3 OUT4`, so "dotted wire on the
+  outer screw" connects the left motors the opposite way round from the right
+  motors. That matches how they're mounted as mirror images on the chassis.
+
 - `VMS`: motor supply +. `GND`: supply − (shared with the Pico GND).
 - `5V`: regulated 5 V **output** when the `5V-EN` jumper is fitted, or a 5 V
   logic **input** when it is removed (see [Power](#power)).
@@ -74,8 +85,12 @@ Leave the header's `+5V` pin unconnected. Never wire it to the Pico's 3V3 pin.
   Pico is unpowered.
 
 When testing for the first time, lift the robot so its wheels are off the
-ground. If a wheel spins the wrong way, swap that motor's two wires in its
-`MOTORA`/`MOTORB` terminal.
+ground and hold **forward**:
+
+- All four wheels roll backwards: your motors are marked the other way round,
+  so swap dotted/plain on **all** motors.
+- One side rolls backwards: swap dotted/plain on that side's two motors.
+- A single wheel is wrong: swap just that motor's two wires.
 
 ### Power
 
