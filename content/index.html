@@ -30,6 +30,69 @@
             touch-action: none;
         }
 
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            border-bottom: 2px solid #aaa;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #aaa;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            background: #eee;
+            color: #333;
+        }
+
+        .tab.active {
+            background: #fff;
+            font-weight: bold;
+        }
+
+        .settings {
+            max-width: 420px;
+            margin: 30px auto;
+            padding: 10px 16px;
+            border: 1px solid #aaa;
+            border-radius: 8px;
+            font-family: sans-serif;
+        }
+
+        .settings label {
+            display: block;
+            margin-top: 12px;
+            font-weight: bold;
+        }
+
+        .settings input {
+            width: 100px;
+            padding: 6px;
+            font-size: 16px;
+        }
+
+        .settings .hint {
+            display: block;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .settings button {
+            margin-top: 16px;
+            padding: 10px 16px;
+            font-size: 16px;
+        }
+
+        #config-status {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
         .ip-input {
             display: block;
             margin: 20px auto;
@@ -43,6 +106,12 @@
 <body>
     <h1 style="text-align: center;">Robot Control Panel</h1>
 
+    <div class="tabs">
+        <button type="button" class="tab active" data-tab="tab-control">Control</button>
+        <button type="button" class="tab" data-tab="tab-config">Configuration</button>
+    </div>
+
+    <div id="tab-control" class="tab-panel">
     <table class="control-table">
         <tr>
             <td><button class="control-button" data-command="FLT">Front Left</button></td>
@@ -61,6 +130,39 @@
             <td><button class="control-button" data-command="BRT">Back Right</button></td>
         </tr>
     </table>
+    </div>
+
+    <!-- Motor tuning, applied live via /config.cgi. Defaults (the value
+         attributes and hints) match custom.h; the robot goes back to them
+         when it reboots. -->
+    <div id="tab-config" class="tab-panel" hidden>
+    <fieldset class="settings">
+        <legend>Motor settings</legend>
+
+        <label for="max_speed">Speed steps</label>
+        <input type="number" id="max_speed" min="1" max="100" value="15">
+        <span class="hint">Default 15 (1-100). Steps from the start speed to full power, one every 0.3 s while a button is held. More steps = slower, smoother acceleration.</span>
+
+        <label for="min_duty">Start power</label>
+        <input type="number" id="min_duty" min="0" max="1000" value="300">
+        <span class="hint">Default 300 (0-1000). Power at the first step. Too low and wheels stop and buzz once the kick ends.</span>
+
+        <label for="pivot_min_duty">Left/Right start power</label>
+        <input type="number" id="pivot_min_duty" min="0" max="1000" value="800">
+        <span class="hint">Default 800 (0-1000). Start power for turning in place, which needs much more force.</span>
+
+        <label for="kick_ms">Kick length (ms)</label>
+        <input type="number" id="kick_ms" min="0" max="1000" value="100">
+        <span class="hint">Default 100 (0-1000, 0 = off). How long a wheel gets the kick power when it starts, to break it free.</span>
+
+        <label for="kick_duty">Kick power</label>
+        <input type="number" id="kick_duty" min="0" max="1000" value="1000">
+        <span class="hint">Default 1000 (0-1000). Lower it for a gentler start; raise it if a wheel starts late or buzzes.</span>
+
+        <button type="button" id="update-config">Update configuration</button>
+        <div id="config-status"></div>
+    </fieldset>
+    </div>
 
     <script>
         $(document).ready(function () {
@@ -182,6 +284,56 @@
                         stopSendingCommand({ keyboard: true });
                     }
                 });
+            });
+
+            // Motor settings panel
+            const configFields = ['max_speed', 'min_duty', 'pivot_min_duty', 'kick_ms', 'kick_duty'];
+
+            function showConfig(config) {
+                configFields.forEach(name => $('#' + name).val(config[name]));
+            }
+
+            function requestConfig(params, okMessage) {
+                $.ajax({ url: '/config.cgi', data: params, dataType: 'json' })
+                    .done(function (config) {
+                        showConfig(config);
+                        $('#config-status').css('color', config.status === 1 ? 'green' : 'red')
+                            .text(config.status === 1 ? okMessage
+                                : 'Some values were out of range and were not applied. Current values are shown.');
+                    })
+                    .fail(function () {
+                        $('#config-status').css('color', 'red').text('Could not reach the robot.');
+                    });
+            }
+
+            $('#update-config').on('click', function () {
+                const params = {};
+                for (const name of configFields) {
+                    const input = document.getElementById(name);
+                    const value = input.value.trim();
+                    const n = Number(value);
+                    if (value === '' || !Number.isInteger(n) || n < input.min || n > input.max) {
+                        $('#config-status').css('color', 'red')
+                            .text($('label[for=' + name + ']').text() + ' must be a whole number from '
+                                + input.min + ' to ' + input.max + '.');
+                        input.focus();
+                        return;
+                    }
+                    params[name] = n;
+                }
+                requestConfig(params, 'Configuration updated.');
+            });
+
+            // Load the robot's current values
+            requestConfig({}, '');
+
+            // Tabs. The idle 'NON' polling keeps running on either tab, so
+            // the robot's watchdog and ramp-down behave the same.
+            $('.tab').on('click', function () {
+                $('.tab').removeClass('active');
+                $(this).addClass('active');
+                $('.tab-panel').prop('hidden', true);
+                $('#' + $(this).data('tab')).prop('hidden', false);
             });
 
             // Start idle sending immediately (send once then repeat)

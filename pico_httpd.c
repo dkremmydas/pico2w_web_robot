@@ -7,7 +7,9 @@
  */
 
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "custom.h"
@@ -58,14 +60,27 @@ Wheel wheels[] = {
 
 int vehicle_speed = 0;
 
-/* Requires MAX_VEHICLE_SPEED defined in custom.h.
- * increase_vehicle_speed()  -> increase magnitude by 1 (clamped to MAX_VEHICLE_SPEED)
+// Motor tuning, adjustable at runtime from the web page's settings panel via
+// /config.cgi. Starts from the custom.h defaults and resets to them on reboot.
+typedef struct
+{
+    int max_speed;      // Number of ramp steps to full power (MAX_VEHICLE_SPEED)
+    int min_duty;       // Duty at the first ramp step (MOTOR_MIN_DUTY)
+    int pivot_min_duty; // Same, for LFT/RGT pivot turns (MOTOR_PIVOT_MIN_DUTY)
+    int kick_ms;        // Kick-start length, 0 = off (MOTOR_KICK_MS)
+    int kick_duty;      // Kick-start duty (MOTOR_KICK_DUTY)
+} MotorConfig;
+
+static MotorConfig config = {MAX_VEHICLE_SPEED, MOTOR_MIN_DUTY, MOTOR_PIVOT_MIN_DUTY, MOTOR_KICK_MS,
+                             MOTOR_KICK_DUTY};
+
+/* increase_vehicle_speed()  -> increase magnitude by 1 (clamped to config.max_speed)
  * decrease_vehicle_speed()  -> decrease magnitude by 1 (clamped to 0)
  * Both preserve the current direction (sign) of vehicle_speed.
  */
 static inline void increase_vehicle_speed(void)
 {
-    if (vehicle_speed < MAX_VEHICLE_SPEED) {
+    if (vehicle_speed < config.max_speed) {
             vehicle_speed++;
     }
 }
@@ -80,6 +95,10 @@ static inline void decrease_vehicle_speed(void)
 
 // Create a virtual file to write the json report
 static char json_response[JSON_BUFFER_SIZE]; // Adjust size as needed
+
+// Separate virtual file for /config.cgi, so a settings update can't clobber a
+// control.cgi reply that's still being sent (they poll every 300 ms).
+static char config_response[JSON_BUFFER_SIZE];
 
 void httpd_init(void);
 
@@ -202,12 +221,12 @@ static inline int is_backward_cmd(CommandType c)
 }
 
 // Kick-start state (see MOTOR_KICK_MS in custom.h): while active, kicked
-// wheels run at full duty and end_motor_kick() later drops every wheel to its
-// ramp duty.
+// wheels run at the kick duty and end_motor_kick() later drops every wheel to
+// its ramp duty.
 static volatile bool kick_active = false;
 
-// Duty for the lowest non-zero speed of the current motion: MOTOR_MIN_DUTY,
-// or MOTOR_PIVOT_MIN_DUTY while pivoting in place.
+// Duty for the lowest non-zero speed of the current motion: config.min_duty,
+// or config.pivot_min_duty while pivoting in place.
 static int min_duty = MOTOR_MIN_DUTY;
 static alarm_id_t kick_alarm;
 
@@ -263,7 +282,7 @@ void update_vehicle()
         else
         {
             vehicle_speed = 1; // start at magnitude 1 for new command
-            min_duty = (cmd == CMD_LFT || cmd == CMD_RGT) ? MOTOR_PIVOT_MIN_DUTY : MOTOR_MIN_DUTY;
+            min_duty = (cmd == CMD_LFT || cmd == CMD_RGT) ? config.pivot_min_duty : config.min_duty;
 
             // update the forward/backward direction of each pin
             switch (cmd)
@@ -361,7 +380,7 @@ void update_vehicle()
 
         // Fraction of full speed for this wheel (direction is set by IN1/IN2 above).
         // Computed from the float coef so a 0.5 inner wheel at speed 1 still moves.
-        float level = fabsf(vehicle_speed * wheels[i].coef) / MAX_VEHICLE_SPEED;
+        float level = fabsf(vehicle_speed * wheels[i].coef) / config.max_speed;
         int duty = 0;
         if (level > 0.0f)
         {
@@ -372,12 +391,12 @@ void update_vehicle()
         }
 
         // Kick a wheel that's starting from rest or reversing
-        bool kick = MOTOR_KICK_MS > 0 && duty > 0 && dir != wheels[i].dir;
+        bool kick = config.kick_ms > 0 && duty > 0 && dir != wheels[i].dir;
         wheels[i].duty = duty;
         wheels[i].dir = dir;
         if (kick)
         {
-            pwm_set_gpio_level(wheels[i].en_pin, 1000);
+            pwm_set_gpio_level(wheels[i].en_pin, duty > config.kick_duty ? duty : config.kick_duty);
             start_kick = true;
         }
         else if (!kick_active || duty == 0)
@@ -394,7 +413,7 @@ void update_vehicle()
             cancel_alarm(kick_alarm); // restart the window for the newly kicked wheels
         }
         kick_active = true;
-        kick_alarm = add_alarm_in_ms(MOTOR_KICK_MS, end_motor_kick, NULL, true);
+        kick_alarm = add_alarm_in_ms(config.kick_ms, end_motor_kick, NULL, true);
     }
 }
 
@@ -448,29 +467,106 @@ static const char *cgi_control(int iIndex, int iNumParams, char *pcParam[], char
     return "/json_response";
 }
 
+// Parses a non-empty, all-digit CGI value into *out if it's within
+// [min, max]; returns false (leaving *out untouched) otherwise.
+static bool parse_config_value(const char *value, int min, int max, int *out)
+{
+    char *end;
+    long v = strtol(value, &end, 10);
+    if (value[0] == '\0' || *end != '\0' || v < min || v > max)
+    {
+        return false;
+    }
+    *out = (int)v;
+    return true;
+}
+
+// /config.cgi?max_speed=15&min_duty=300&... : sets any of the motor tuning
+// values given (out-of-range or malformed ones are ignored and reported), and
+// replies with the full current config. With no parameters it just reads it.
+static const char *cgi_config(int iIndex, int iNumParams, char *pcParam[], char *pcValue[])
+{
+    (void)iIndex;
+    static const struct
+    {
+        const char *name;
+        int min, max;
+        size_t offset;
+    } fields[] = {
+        {"max_speed", 1, 100, offsetof(MotorConfig, max_speed)},
+        {"min_duty", 0, 1000, offsetof(MotorConfig, min_duty)},
+        {"pivot_min_duty", 0, 1000, offsetof(MotorConfig, pivot_min_duty)},
+        {"kick_ms", 0, 1000, offsetof(MotorConfig, kick_ms)},
+        {"kick_duty", 0, 1000, offsetof(MotorConfig, kick_duty)},
+    };
+
+    int rejected = 0;
+    for (int i = 0; i < iNumParams; i++)
+    {
+        if (pcParam[i] == NULL || pcValue[i] == NULL)
+            continue;
+        for (size_t f = 0; f < LWIP_ARRAYSIZE(fields); f++)
+        {
+            if (strcmp(pcParam[i], fields[f].name) == 0)
+            {
+                int *target = (int *)((char *)&config + fields[f].offset);
+                if (!parse_config_value(pcValue[i], fields[f].min, fields[f].max, target))
+                {
+                    printf("Config: rejected %s=%s (allowed %d-%d)\n", fields[f].name, pcValue[i],
+                           fields[f].min, fields[f].max);
+                    rejected++;
+                }
+                break;
+            }
+        }
+    }
+
+    if (vehicle_speed > config.max_speed)
+    {
+        vehicle_speed = config.max_speed; // new ramp is shorter than the current speed
+    }
+
+    snprintf(config_response, JSON_BUFFER_SIZE,
+             "{\"status\":%d, \"max_speed\":%d, \"min_duty\":%d, \"pivot_min_duty\":%d, "
+             "\"kick_ms\":%d, \"kick_duty\":%d}",
+             rejected == 0 ? 1 : 0, config.max_speed, config.min_duty, config.pivot_min_duty,
+             config.kick_ms, config.kick_duty);
+    printf("Config: %s\n", config_response);
+
+    return "/config_response";
+}
+
+// Maps a virtual file name to its backing buffer, or NULL if it isn't one.
+static char *virtual_file_buffer(const char *name)
+{
+    if (strcmp(name, "/json_response") == 0)
+        return json_response;
+    if (strcmp(name, "/config_response") == 0)
+        return config_response;
+    return NULL;
+}
+
 int fs_open_custom(struct fs_file *file, const char *name)
 {
-    // httpd asks here first for every request, so this logs each file served.
-    if (strcmp(name, "/json_response") != 0)
+    char *buffer = virtual_file_buffer(name);
+    if (buffer == NULL)
     {
+        // httpd asks here first for every request, so this logs each file served.
         printf("HTTP request: %s\n", name);
+        return 0; // Not a virtual file
     }
-    if (strcmp(name, "/json_response") == 0)
-    {
-        printf("Read json_response file\n");
-        extern char json_response[];       // Reference the global variable
-        file->data = json_response;        // Set file data to the virtual file string
-        file->len = strlen(json_response); // Set file length
-        file->index = 0;                   // Start reading from the beginning
-        return 1;                          // Success
-    }
-    return 0; // File not found
+
+    printf("Read %s file\n", name);
+    file->data = buffer;        // Set file data to the virtual file string
+    file->len = strlen(buffer); // Set file length
+    file->index = 0;            // Start reading from the beginning
+    return 1;                   // Success
 }
 
 int fs_read_custom(struct fs_file *file, char *buffer, int count)
 {
-    // Ensure the file is valid and points to the virtual file
-    if (!file || file->data != json_response)
+    // Ensure the file is valid and points to a virtual file
+    if (!file || (file->data != json_response && file->data != config_response))
     {
         printf("Error: Invalid file or not a virtual file\n");
         return -1; // Return error
@@ -488,7 +584,7 @@ int fs_read_custom(struct fs_file *file, char *buffer, int count)
     int to_read = (count < available) ? count : available;
 
     // Copy the data to the provided buffer
-    memcpy(buffer, json_response + file->index, to_read);
+    memcpy(buffer, file->data + file->index, to_read);
 
     // Update the file's read index
     file->index += to_read;
@@ -499,10 +595,10 @@ int fs_read_custom(struct fs_file *file, char *buffer, int count)
 
 void fs_close_custom(struct fs_file *file)
 {
-    if (file && file->data == json_response)
+    if (file && (file->data == json_response || file->data == config_response))
     {
         // Clear the contents of the virtual_file
-        memset(json_response, 0, sizeof(json_response));
+        memset((char *)file->data, 0, JSON_BUFFER_SIZE);
         printf("Cleared virtual file contents.\n");
     }
 
@@ -510,7 +606,7 @@ void fs_close_custom(struct fs_file *file)
     printf("Closed virtual file: %p\n", file);
 }
 
-static tCGI cgi_handlers[] = {{"/control.cgi", cgi_control}};
+static tCGI cgi_handlers[] = {{"/control.cgi", cgi_control}, {"/config.cgi", cgi_config}};
 
 // Reads WIFI_MODE_SWITCH_PIN to decide which network to start at boot.
 // Floating/high (internal pull-up, no switch wired yet) -> access point

@@ -66,6 +66,12 @@ behavior (connection status, received commands, PWM duty per wheel).
   (±1.0 for straight, ±0.5 on the inner wheels for turns); `STP` zeroes speed
   immediately. Per-wheel PWM duty is `vehicle_speed * |coef|`, scaled to the
   0–1000 PWM wrap value, with direction set via each motor's IN1/IN2 GPIO pins.
+- **Runtime motor tuning**: `/config.cgi` (`cgi_config()`) reads/sets the
+  `MotorConfig config` values (ramp steps, start duty, pivot start duty,
+  kick-start length and duty) from the page's "Motor settings" panel. The
+  `custom.h` constants are only the boot defaults; changes are lost on reboot.
+  The defaults are also written in the panel's hint text in `index.html`, so
+  keep the two in sync.
 - **Virtual JSON file** (`fs_open_custom`/`fs_read_custom`/`fs_close_custom`):
   `cgi_control` writes a status JSON blob into a fixed `json_response` buffer
   and returns `/json_response` as the CGI redirect target; these `fs_*_custom`
