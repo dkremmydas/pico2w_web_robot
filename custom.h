@@ -62,6 +62,11 @@
 // starts (a higher-voltage motor supply needs less).
 #define MOTOR_MIN_DUTY 500
 
+// Pivot turns (LFT/RGT) spin the two sides in opposite directions, so every
+// wheel scrubs sideways across the floor and needs far more torque than
+// driving straight. Their ramp starts at this duty instead of MOTOR_MIN_DUTY.
+#define MOTOR_PIVOT_MIN_DUTY 800
+
 // Kick-start: a wheel starting from rest (or reversing) is driven at full duty
 // for this long before settling to its ramp duty. Breaking static friction
 // takes far more torque than keeping a wheel turning, so this gets all wheels

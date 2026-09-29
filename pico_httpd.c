@@ -205,6 +205,10 @@ static inline int is_backward_cmd(CommandType c)
 // wheels run at full duty and end_motor_kick() later drops every wheel to its
 // ramp duty.
 static volatile bool kick_active = false;
+
+// Duty for the lowest non-zero speed of the current motion: MOTOR_MIN_DUTY,
+// or MOTOR_PIVOT_MIN_DUTY while pivoting in place.
+static int min_duty = MOTOR_MIN_DUTY;
 static alarm_id_t kick_alarm;
 
 static int64_t end_motor_kick(alarm_id_t id, void *user_data)
@@ -259,6 +263,7 @@ void update_vehicle()
         else
         {
             vehicle_speed = 1; // start at magnitude 1 for new command
+            min_duty = (cmd == CMD_LFT || cmd == CMD_RGT) ? MOTOR_PIVOT_MIN_DUTY : MOTOR_MIN_DUTY;
 
             // update the forward/backward direction of each pin
             switch (cmd)
@@ -362,8 +367,8 @@ void update_vehicle()
         {
             if (level > 1.0f)
                 level = 1.0f;
-            // Start at MOTOR_MIN_DUTY so the motor turns instead of buzzing
-            duty = MOTOR_MIN_DUTY + (int)((1000 - MOTOR_MIN_DUTY) * level);
+            // Start at min_duty so the motor turns instead of buzzing
+            duty = min_duty + (int)((1000 - min_duty) * level);
         }
 
         // Kick a wheel that's starting from rest or reversing
