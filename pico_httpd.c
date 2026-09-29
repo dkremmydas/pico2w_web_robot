@@ -45,6 +45,8 @@ typedef struct
     uint in2_pin; // Direction pin 2
     int speed;    // Speed (0 to +10)
     float coef;   // Speed coefficient for this wheel
+    int duty;     // Ramp PWM duty (0-1000), applied once any kick-start ends
+    int dir;      // Direction currently applied: 1 forward, -1 backward, 0 stopped
 } Wheel;
 
 Wheel wheels[] = {
@@ -199,6 +201,24 @@ static inline int is_backward_cmd(CommandType c)
     return (c == CMD_BWD || c == CMD_BLT || c == CMD_BRT);
 }
 
+// Kick-start state (see MOTOR_KICK_MS in custom.h): while active, kicked
+// wheels run at full duty and end_motor_kick() later drops every wheel to its
+// ramp duty.
+static volatile bool kick_active = false;
+static alarm_id_t kick_alarm;
+
+static int64_t end_motor_kick(alarm_id_t id, void *user_data)
+{
+    (void)id;
+    (void)user_data;
+    kick_active = false;
+    for (int i = 0; i < NUM_OF_WHEELS; i++)
+    {
+        pwm_set_gpio_level(wheels[i].en_pin, wheels[i].duty);
+    }
+    return 0; // one-shot
+}
+
 // Update the vehicle direction and speed according to command history
 // Implements:
 // - If the current command equals the previous command -> increase speed magnitude by 1 (cap 10)
@@ -310,8 +330,11 @@ void update_vehicle()
 
 
     // Apply to hardware: direction pins and PWM
+    bool start_kick = false;
     for (int i = 0; i < NUM_OF_WHEELS; i++)
     {
+        int dir = vehicle_speed == 0 ? 0 : (wheels[i].coef > 0 ? 1 : -1);
+
         if (vehicle_speed == 0)
         { // Stopped: release both direction pins so the board's L1-L4 LEDs go
           // dark (the motor coasts either way, since ENA/ENB is at 0 too)
@@ -342,7 +365,31 @@ void update_vehicle()
             // Start at MOTOR_MIN_DUTY so the motor turns instead of buzzing
             duty = MOTOR_MIN_DUTY + (int)((1000 - MOTOR_MIN_DUTY) * level);
         }
-        pwm_set_gpio_level(wheels[i].en_pin, duty);
+
+        // Kick a wheel that's starting from rest or reversing
+        bool kick = MOTOR_KICK_MS > 0 && duty > 0 && dir != wheels[i].dir;
+        wheels[i].duty = duty;
+        wheels[i].dir = dir;
+        if (kick)
+        {
+            pwm_set_gpio_level(wheels[i].en_pin, 1000);
+            start_kick = true;
+        }
+        else if (!kick_active || duty == 0)
+        {
+            pwm_set_gpio_level(wheels[i].en_pin, duty);
+        }
+        // else: a kick is running, end_motor_kick() applies this duty
+    }
+
+    if (start_kick)
+    {
+        if (kick_active)
+        {
+            cancel_alarm(kick_alarm); // restart the window for the newly kicked wheels
+        }
+        kick_active = true;
+        kick_alarm = add_alarm_in_ms(MOTOR_KICK_MS, end_motor_kick, NULL, true);
     }
 }
 
@@ -511,16 +558,65 @@ int wifi_ap_ip4_input_filter(struct pbuf *p, struct netif *inp)
 
     if (lock_held && !lock_expired && !ip4_addr_cmp(&src, &active_client_ip))
     {
+        // Log at most once every 2 s, a blocked client retries constantly
+        static absolute_time_t last_drop_log;
+        if (absolute_time_diff_us(last_drop_log, now) > 2000 * 1000)
+        {
+            last_drop_log = now;
+            char held[IP4ADDR_STRLEN_MAX];
+            ip4addr_ntoa_r(&active_client_ip, held, sizeof(held));
+            printf("AP lock: ignoring %s, control held by %s\n", ip4addr_ntoa(&src), held);
+        }
         pbuf_free(p);
         return 1; // a different client already holds the lock: dropped
     }
 
     // No one holds the lock, the previous holder timed out, or this is the
     // current holder checking back in - (re)claim it for this source IP.
+    if (!ip4_addr_cmp(&src, &active_client_ip))
+    {
+        printf("AP lock: control now held by %s\n", ip4addr_ntoa(&src));
+    }
     ip4_addr_copy(active_client_ip, src);
     active_client_last_seen = now;
     return 0;
 }
+
+#if MOTOR_PIN_TEST
+// See MOTOR_PIN_TEST in custom.h. Wheel index -> board/LED: wheels 0/1 are the
+// front board (MOTORA/MOTORB), 2/3 the back board, matching the wheels[] table.
+static void run_motor_pin_test(void)
+{
+    static const char *board[] = {"front", "front", "back", "back"};
+    static const char *led_in1[] = {"L1 (IN1)", "L3 (IN3)", "L1 (IN1)", "L3 (IN3)"};
+    static const char *led_in2[] = {"L2 (IN2)", "L4 (IN4)", "L2 (IN2)", "L4 (IN4)"};
+
+    for (int i = 0; i < NUM_OF_WHEELS; i++)
+    {
+        pwm_set_gpio_level(wheels[i].en_pin, 0);
+        gpio_put(wheels[i].in1_pin, 0);
+        gpio_put(wheels[i].in2_pin, 0);
+    }
+
+    while (true)
+    {
+        printf("\n=== PIN TEST: all IN pins LOW - every L1-L4 LED should be OFF ===\n");
+        sleep_ms(3000);
+        for (int i = 0; i < NUM_OF_WHEELS; i++)
+        {
+            for (int n = 0; n < 2; n++)
+            {
+                uint pin = n == 0 ? wheels[i].in1_pin : wheels[i].in2_pin;
+                const char *led = n == 0 ? led_in1[i] : led_in2[i];
+                printf("PIN TEST: GP%u HIGH -> only %s on the %s board should be ON\n", pin, led, board[i]);
+                gpio_put(pin, 1);
+                sleep_ms(2000);
+                gpio_put(pin, 0);
+            }
+        }
+    }
+}
+#endif
 
 int main()
 {
@@ -531,6 +627,10 @@ int main()
 
     // Wait some seconds before starting the web server
     sleep_ms(5000);
+
+#if MOTOR_PIN_TEST
+    run_motor_pin_test(); // never returns
+#endif
 
     if (cyw43_arch_init())
     {

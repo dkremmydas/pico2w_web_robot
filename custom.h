@@ -62,6 +62,18 @@
 // starts (a higher-voltage motor supply needs less).
 #define MOTOR_MIN_DUTY 500
 
+// Kick-start: a wheel starting from rest (or reversing) is driven at full duty
+// for this long before settling to its ramp duty. Breaking static friction
+// takes far more torque than keeping a wheel turning, so this gets all wheels
+// moving together instead of some sitting stalled and buzzing. 0 disables it.
+#define MOTOR_KICK_MS 150
+
+// Wiring check: set to 1 to boot into a loop (no WiFi) that raises each
+// IN1-IN4 pin on its own for 2 s, printing which one over USB serial, so you
+// can watch the matching L1-L4 LED on each L298N. ENA/ENB stay at 0, so the
+// motors don't move. Set back to 0 for normal operation.
+#define MOTOR_PIN_TEST 0
+
 #define COMMAND_TIMEOUT_MS 1000  // Stop motors if no command received within this long
 
 #define MOTOR_FRONT_RIGHT_ENA 2
